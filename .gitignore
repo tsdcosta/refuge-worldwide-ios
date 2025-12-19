@@ -1,0 +1,15 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcuserdatad
+*.xcuserdata/
+
+# Swift Package Manager
+.build/
+
+# macOS
+.DS_Store
+
+# Claude
+CLAUDE.md
