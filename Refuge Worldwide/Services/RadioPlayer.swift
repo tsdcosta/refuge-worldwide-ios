@@ -27,6 +27,8 @@ final class AudioEngine: NSObject, @unchecked Sendable {
     private var _isPlaying = false
     private var _isBuffering = false
     private var _playbackIntent = false
+    private var _currentStreamURL: URL?
+    private var _isLiveStream = true
 
     var isPlaying: Bool {
         stateLock.withLock { _isPlaying }
@@ -39,6 +41,14 @@ final class AudioEngine: NSObject, @unchecked Sendable {
     var playbackIntent: Bool {
         get { stateLock.withLock { _playbackIntent } }
         set { stateLock.withLock { _playbackIntent = newValue } }
+    }
+
+    var currentStreamURL: URL? {
+        stateLock.withLock { _currentStreamURL }
+    }
+
+    var isLiveStream: Bool {
+        stateLock.withLock { _isLiveStream }
     }
 
     // Callback for state changes (will be called on arbitrary queue)
@@ -118,13 +128,40 @@ final class AudioEngine: NSObject, @unchecked Sendable {
     // MARK: - Playback Control
 
     func play() {
-        print("[AudioEngine] Play requested")
+        playLiveStream()
+    }
+
+    func playLiveStream() {
+        print("[AudioEngine] Play live stream requested")
         playbackIntent = true
+
+        stateLock.withLock {
+            _currentStreamURL = liveStreamURL
+            _isLiveStream = true
+        }
 
         if player == nil {
             createPlayer()
         } else {
-            // For live streams, always create fresh item
+            createFreshPlayerItem()
+        }
+
+        player?.play()
+        updateState(playing: true, buffering: true)
+    }
+
+    func playURL(_ url: URL) {
+        print("[AudioEngine] Play URL requested: \(url)")
+        playbackIntent = true
+
+        stateLock.withLock {
+            _currentStreamURL = url
+            _isLiveStream = false
+        }
+
+        if player == nil {
+            createPlayer()
+        } else {
             createFreshPlayerItem()
         }
 
@@ -136,6 +173,9 @@ final class AudioEngine: NSObject, @unchecked Sendable {
         print("[AudioEngine] Stop requested")
         playbackIntent = false
         player?.pause()
+        stateLock.withLock {
+            _currentStreamURL = nil
+        }
         updateState(playing: false, buffering: false)
     }
 
@@ -165,7 +205,12 @@ final class AudioEngine: NSObject, @unchecked Sendable {
     private func createFreshPlayerItem() {
         itemStatusObserver?.invalidate()
 
-        let asset = AVURLAsset(url: liveStreamURL)
+        guard let url = currentStreamURL else {
+            print("[AudioEngine] No URL to play")
+            return
+        }
+
+        let asset = AVURLAsset(url: url)
         playerItem = AVPlayerItem(asset: asset)
         playerItem?.preferredForwardBufferDuration = 2
 
@@ -174,7 +219,7 @@ final class AudioEngine: NSObject, @unchecked Sendable {
         }
 
         player?.replaceCurrentItem(with: playerItem)
-        print("[AudioEngine] Created fresh player item")
+        print("[AudioEngine] Created fresh player item for: \(url)")
     }
 
     private func handleTimeControlStatusChange(_ status: AVPlayer.TimeControlStatus) {
@@ -251,19 +296,36 @@ final class RadioPlayer: ObservableObject {
 
     @Published private(set) var isPlaying = false
     @Published private(set) var isBuffering = false
+    @Published private(set) var isLiveStream = true
+    @Published private(set) var currentPlayingURL: URL?
     @Published var nowPlayingTitle = "Refuge Worldwide"
     @Published var nowPlayingSubtitle = ""
     @Published var nowPlayingArtworkURL: URL?
 
     private let engine = AudioEngine.shared
+    private let soundCloudPlayer = SoundCloudPlayer.shared
+    private var isSoundCloudPlaying = false
 
     private init() {
         // Listen to engine state changes
         engine.onStateChanged = { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
+                guard let self = self, !self.isSoundCloudPlaying else { return }
                 self.isPlaying = self.engine.isPlaying
                 self.isBuffering = self.engine.isBuffering
+                self.isLiveStream = self.engine.isLiveStream
+                self.currentPlayingURL = self.engine.currentStreamURL
+                self.updateNowPlayingPlaybackState()
+            }
+        }
+
+        // Listen to SoundCloud player state changes
+        soundCloudPlayer.onStateChanged = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.isSoundCloudPlaying else { return }
+                self.isPlaying = self.soundCloudPlayer.isPlaying
+                self.isBuffering = self.soundCloudPlayer.isBuffering
+                self.currentPlayingURL = self.soundCloudPlayer.currentURL
                 self.updateNowPlayingPlaybackState()
             }
         }
@@ -275,25 +337,86 @@ final class RadioPlayer: ObservableObject {
     // MARK: - Playback Control
 
     func play() {
+        // Stop SoundCloud if playing
+        if isSoundCloudPlaying {
+            soundCloudPlayer.stop()
+            isSoundCloudPlaying = false
+        }
+
         engine.play()
         isPlaying = true
         isBuffering = true
+        isLiveStream = true
+        updateNowPlayingPlaybackState()
+    }
+
+    func playURL(_ url: URL, title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil) {
+        // Update metadata first
+        if let title = title {
+            nowPlayingTitle = title
+        }
+        if let subtitle = subtitle {
+            nowPlayingSubtitle = subtitle
+        }
+        if let artworkURL = artworkURL {
+            nowPlayingArtworkURL = artworkURL
+        }
+
+        // Check if this is a SoundCloud URL
+        if SoundCloudPlayer.isSoundCloudURL(url) {
+            // Stop the audio engine if playing
+            engine.stop()
+            isSoundCloudPlaying = true
+            soundCloudPlayer.play(url: url)
+        } else {
+            // Stop SoundCloud if playing
+            if isSoundCloudPlaying {
+                soundCloudPlayer.stop()
+                isSoundCloudPlaying = false
+            }
+            engine.playURL(url)
+        }
+
+        isPlaying = true
+        isBuffering = true
+        isLiveStream = false
+        currentPlayingURL = url
+        updateNowPlayingInfo()
         updateNowPlayingPlaybackState()
     }
 
     func stop() {
-        engine.stop()
+        if isSoundCloudPlaying {
+            soundCloudPlayer.stop()
+            isSoundCloudPlaying = false
+        } else {
+            engine.stop()
+        }
+
         isPlaying = false
         isBuffering = false
+        currentPlayingURL = nil
         updateNowPlayingPlaybackState()
     }
 
     func toggle() {
-        if engine.playbackIntent {
+        if isSoundCloudPlaying {
+            if soundCloudPlayer.isPlaying {
+                stop()
+            } else {
+                // Can't resume SoundCloud easily, just stop
+                stop()
+            }
+        } else if engine.playbackIntent {
             stop()
         } else {
             play()
         }
+    }
+
+    /// Check if a specific URL is currently playing
+    func isPlayingURL(_ url: URL) -> Bool {
+        return isPlaying && currentPlayingURL == url
     }
 
     // MARK: - Now Playing Info
@@ -348,7 +471,7 @@ final class RadioPlayer: ObservableObject {
 
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: nowPlayingTitle,
-            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyIsLiveStream: isLiveStream,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
             MPMediaItemPropertyPlaybackDuration: 0,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: 0
@@ -369,7 +492,7 @@ final class RadioPlayer: ObservableObject {
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         info[MPMediaItemPropertyTitle] = nowPlayingTitle
-        info[MPNowPlayingInfoPropertyIsLiveStream] = true
+        info[MPNowPlayingInfoPropertyIsLiveStream] = isLiveStream
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

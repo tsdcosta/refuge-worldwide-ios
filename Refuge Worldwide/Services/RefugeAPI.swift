@@ -209,6 +209,9 @@ final class RefugeAPI {
             if !shows.isEmpty { relatedShows = shows }
         }
 
-        return ShowDetail(description: description, genres: genres, coverImage: coverImage, artistsCollection: artistsCollection, descriptionParagraphs: descriptionParagraphs, relatedShows: relatedShows)
+        // Try to extract a top-level mixcloud link from the show object
+        let mixcloudLink: String? = showDict["mixcloudLink"] as? String
+
+        return ShowDetail(description: description, genres: genres, coverImage: coverImage, artistsCollection: artistsCollection, descriptionParagraphs: descriptionParagraphs, relatedShows: relatedShows, mixcloudLink: mixcloudLink)
     }
 }

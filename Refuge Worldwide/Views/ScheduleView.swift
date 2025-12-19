@@ -318,37 +318,54 @@ struct ShowDetailView: View {
                             .padding(.horizontal, Theme.Spacing.lg)
 
                         ForEach(Array(relatedShows.enumerated()), id: \.element.id) { index, relatedShow in
-                            NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: relatedShow))) {
-                                RelatedShowCard(show: relatedShow, navigationPath: $navigationPath)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                            HStack(spacing: Theme.Spacing.md) {
+                                NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: relatedShow))) {
+                                    RelatedShowCard(show: relatedShow, navigationPath: $navigationPath)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                            // Separator between items (not after last)
-                            if index < relatedShows.count - 1 {
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.1))
-                                    .frame(height: 1)
-                                    .padding(.vertical, Theme.Spacing.sm)
-                                    .padding(.horizontal, Theme.Spacing.lg)
+                                // Play button moved out of the card so it is tappable independently
+                                if let mixcloudLink = relatedShow.mixcloudLink, !mixcloudLink.isEmpty {
+                                    ShowPlayButton(
+                                        mixcloudLink: mixcloudLink,
+                                        title: relatedShow.title,
+                                        artworkURL: relatedShow.coverImageURL
+                                    )
+                                    .frame(width: 44, height: 44)
+                                    .padding(.trailing, Theme.Spacing.lg)
+                                } else {
+                                    Spacer()
+                                        .frame(width: Theme.Spacing.lg)
+                                }
                             }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(.bottom, Theme.Spacing.xl)
-        }
-        .background(Theme.background)
-        .task {
-            // Initialize from passed show data if available
-            if let showArtists = show.artistsCollection?.items, artists.isEmpty {
-                artists = showArtists
-            }
-            await fetchShowDetail()
-        }
-    }
+                             
+                             // Separator between items (not after last)
+                             if index < relatedShows.count - 1 {
+                                 Rectangle()
+                                     .fill(Color.white.opacity(0.1))
+                                     .frame(height: 1)
+                                     .padding(.vertical, Theme.Spacing.sm)
+                                     .padding(.horizontal, Theme.Spacing.lg)
+                             }
+                         }
+                     }
+                     .frame(maxWidth: .infinity, alignment: .leading)
+                 }
+             }
+             .padding(.bottom, Theme.Spacing.xl)
+         }
+         .background(Theme.background)
+         .task {
+             // Initialize from passed show data if available
+             if let showArtists = show.artistsCollection?.items, artists.isEmpty {
+                 artists = showArtists
+             }
+             await fetchShowDetail()
+         }
+     }
 
-    func fetchShowDetail() async {
+     func fetchShowDetail() async {
         guard let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return }
 
         do {
@@ -500,41 +517,58 @@ struct ArtistDetailView: View {
                                 .padding(.horizontal, Theme.Spacing.lg)
 
                             ForEach(Array(shows.enumerated()), id: \.element.id) { index, show in
-                                NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: show))) {
-                                    ArtistShowCard(show: show)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                                HStack(spacing: Theme.Spacing.md) {
+                                    NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: show))) {
+                                        ArtistShowCard(show: show)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                                // Separator between items (not after last)
-                                if index < shows.count - 1 {
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.1))
-                                        .frame(height: 1)
-                                        .padding(.vertical, Theme.Spacing.sm)
-                                        .padding(.horizontal, Theme.Spacing.lg)
+                                    // Play button moved out so it can be tapped separately from navigation
+                                    if let mixcloudLink = show.mixcloudLink, !mixcloudLink.isEmpty {
+                                        ShowPlayButton(
+                                            mixcloudLink: mixcloudLink,
+                                            title: show.title,
+                                            artworkURL: show.coverImageURL
+                                        )
+                                        .frame(width: 44, height: 44)
+                                        .padding(.trailing, Theme.Spacing.lg)
+                                    } else {
+                                        Spacer()
+                                            .frame(width: Theme.Spacing.lg)
+                                    }
                                 }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                } else {
-                    Text("Failed to load artist")
-                        .font(.lightBody(size: Theme.Typography.bodyBase))
-                        .foregroundColor(Theme.secondaryText)
-                        .padding(.top, 100)
-                }
-            }
-            .padding(.bottom, Theme.Spacing.xl)
-        }
-        .background(Theme.background)
-        .task {
-            do {
-                artist = try await RefugeAPI.shared.fetchArtist(slug: artistSlug)
-            } catch {
-                print("Failed to fetch artist:", error)
-            }
-            isLoading = false
-        }
+
+                                 // Separator between items (not after last)
+                                 if index < shows.count - 1 {
+                                     Rectangle()
+                                         .fill(Color.white.opacity(0.1))
+                                         .frame(height: 1)
+                                         .padding(.vertical, Theme.Spacing.sm)
+                                         .padding(.horizontal, Theme.Spacing.lg)
+                                 }
+                             }
+                         }
+                         .frame(maxWidth: .infinity, alignment: .leading)
+                     }
+                 } else {
+                     Text("Failed to load artist")
+                         .font(.lightBody(size: Theme.Typography.bodyBase))
+                         .foregroundColor(Theme.secondaryText)
+                         .padding(.top, 100)
+                 }
+             }
+             .padding(.bottom, Theme.Spacing.xl)
+         }
+         .background(Theme.background)
+         .task {
+             do {
+                 artist = try await RefugeAPI.shared.fetchArtist(slug: artistSlug)
+             } catch {
+                 print("Failed to fetch artist:", error)
+             }
+             isLoading = false
+         }
     }
 }
 
@@ -612,10 +646,13 @@ struct ArtistShowCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, Theme.Spacing.lg)
+
+            // Spacer preserved; actual play button is rendered outside the card so it can be tapped
+            Spacer()
+                .frame(width: Theme.Spacing.lg)
         }
         .padding(.leading, Theme.Spacing.lg)
-        .frame(height: rowHeight)
+        .frame(minHeight: rowHeight)
         .background(Theme.background)
     }
 }
@@ -700,10 +737,9 @@ struct RelatedShowCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, Theme.Spacing.lg)
         }
         .padding(.leading, Theme.Spacing.lg)
-        .frame(height: rowHeight)
+        .frame(minHeight: rowHeight)
         .background(Theme.background)
     }
 }
@@ -737,5 +773,58 @@ struct RelatedShowArtistLinks: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Show Play Button
+
+struct ShowPlayButton: View {
+    let mixcloudLink: String
+    let title: String
+    let artworkURL: URL?
+
+    @ObservedObject private var radio = RadioPlayer.shared
+
+    private var streamURL: URL? {
+        URL(string: mixcloudLink)
+    }
+
+    private var isThisPlaying: Bool {
+        guard let url = streamURL else { return false }
+        return radio.isPlayingURL(url)
+    }
+
+    private var isThisBuffering: Bool {
+        guard let url = streamURL else { return false }
+        return radio.isBuffering && radio.currentPlayingURL == url
+    }
+
+    var body: some View {
+        Button {
+            guard let url = streamURL else { return }
+            if isThisPlaying {
+                radio.stop()
+            } else {
+                radio.playURL(url, title: title, artworkURL: artworkURL)
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Theme.foreground)
+                    .frame(width: 36, height: 36)
+
+                if isThisBuffering {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
+                        .scaleEffect(0.7)
+                } else {
+                    Image(systemName: isThisPlaying ? "stop.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Theme.background)
+                        .offset(x: isThisPlaying ? 0 : 1)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }

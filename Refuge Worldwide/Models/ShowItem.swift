@@ -28,9 +28,9 @@ struct ShowDetail: Decodable {
     let genres: [String]?
     let coverImage: CoverImage?
     let artistsCollection: ArtistCollection?
-    // Optional pre-split paragraphs parsed from the site's content.json (if available)
     let descriptionParagraphs: [String]?
     let relatedShows: [RelatedShow]?
+    let mixcloudLink: String?      // optional mixcloud link for the show
 
     struct CoverImage: Decodable {
         let url: URL
