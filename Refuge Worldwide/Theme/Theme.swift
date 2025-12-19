@@ -16,13 +16,8 @@ struct Theme {
     static let lightGrey = Color(hex: "#ececec")
 
     // MARK: - Brand Colors (Section Accents)
-    static let orange = Color(hex: "#ff9300")      // Radio
-    static let purple = Color(hex: "#a346ff")      // Artists
-    static let green = Color(hex: "#08c900")       // News
-    static let blue = Color(hex: "#4d7cff")        // Events
-    static let pink = Color(hex: "#ff27c5")        // Newsletter
-    static let brown = Color(hex: "#815900")       // About
-    static let red = Color(hex: "#ff0000")         // Shop / Live indicator
+    static let orange = Color(hex: "#ff9300")
+    static let red = Color(hex: "#ff0000")
 
     // MARK: - Semantic Colors
     static let accent = orange                      // Primary accent (radio app)
@@ -118,19 +113,48 @@ extension Color {
 // MARK: - Font Extensions
 
 extension Font {
-    /// Serif font for headings (similar to Bely Display)
+    /// Serif font for headings (Bely Display preferred, falls back to Georgia/Cambria/Times)
     static func serifHeading(size: CGFloat) -> Font {
-        .system(size: size, design: .serif)
+        // Try the exact PostScript / font name first
+        if UIFont(name: "BelyDisplay-Regular", size: size) != nil {
+            return Font.custom("BelyDisplay-Regular", size: size)
+        }
+        // Try common serif fallbacks explicitly
+        if UIFont(name: "Georgia", size: size) != nil {
+            return Font.custom("Georgia", size: size)
+        }
+        if UIFont(name: "Cambria", size: size) != nil {
+            return Font.custom("Cambria", size: size)
+        }
+        if UIFont(name: "TimesNewRomanPSMT", size: size) != nil {
+            return Font.custom("TimesNewRomanPSMT", size: size)
+        }
+        // Last resort: system serif design
+        return .system(size: size, design: .serif)
     }
 
-    /// Light weight body text (similar to Visuelt 300)
+    /// Light weight body text (Visuelt preferred)
     static func lightBody(size: CGFloat) -> Font {
-        .system(size: size, weight: .light)
+        if UIFont(name: "Visuelt-Light", size: size) != nil {
+            return Font.custom("Visuelt-Light", size: size)
+        }
+        if UIFont(name: "VisueltLight", size: size) != nil {
+            return Font.custom("VisueltLight", size: size)
+        }
+        // Fall back to system UI font with light weight
+        return .system(size: size, weight: .light)
     }
 
-    /// Medium weight for emphasis (similar to Visuelt 500)
+    /// Medium weight for emphasis (Visuelt preferred)
     static func mediumBody(size: CGFloat) -> Font {
-        .system(size: size, weight: .medium)
+        if UIFont(name: "Visuelt-Medium", size: size) != nil {
+            return Font.custom("Visuelt-Medium", size: size)
+        }
+        if UIFont(name: "VisueltMedium", size: size) != nil {
+            return Font.custom("VisueltMedium", size: size)
+        }
+        // Fall back to system UI font with medium weight
+        return .system(size: size, weight: .medium)
     }
 }
 

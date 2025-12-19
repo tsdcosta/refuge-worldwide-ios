@@ -28,7 +28,10 @@ struct ShowDetail: Decodable {
     let genres: [String]?
     let coverImage: CoverImage?
     let artistsCollection: ArtistCollection?
-    
+    // Optional pre-split paragraphs parsed from the site's content.json (if available)
+    let descriptionParagraphs: [String]?
+    let relatedShows: [RelatedShow]?
+
     struct CoverImage: Decodable {
         let url: URL
     }
@@ -40,6 +43,22 @@ struct ShowDetail: Decodable {
     struct Artist: Decodable {
         let name: String
         let slug: String
+    }
+
+    struct RelatedShow: Decodable, Identifiable {
+        let id: String
+        let title: String
+        let date: String?
+        let slug: String
+        let mixcloudLink: String?
+        let coverImage: String?
+        let genres: [String]?
+        let artistsCollection: ArtistCollection?
+
+        var coverImageURL: URL? {
+            guard let coverImage = coverImage else { return nil }
+            return URL(string: coverImage)
+        }
     }
 }
 
@@ -54,6 +73,80 @@ struct ShowItem: Identifiable, Decodable, Hashable {
     let description: String?
     let genres: [String]?
     let artistsCollection: ArtistCollection?
+
+    /// Memberwise initializer
+    init(title: String, slug: String, date: Date?, dateEnd: Date?, coverImage: CoverImage?, description: String?, genres: [String]?, artistsCollection: ArtistCollection?) {
+        self.title = title
+        self.slug = slug
+        self.date = date
+        self.dateEnd = dateEnd
+        self.coverImage = coverImage
+        self.description = description
+        self.genres = genres
+        self.artistsCollection = artistsCollection
+    }
+
+    /// Create a ShowItem from a RelatedShow (for navigation)
+    init(from relatedShow: ShowDetail.RelatedShow) {
+        self.title = relatedShow.title
+        self.slug = relatedShow.slug
+        self.dateEnd = nil
+        self.description = nil
+        self.genres = relatedShow.genres
+        self.artistsCollection = nil
+
+        // Parse date from ISO string
+        if let dateStr = relatedShow.date {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = formatter.date(from: dateStr) {
+                self.date = parsed
+            } else {
+                formatter.formatOptions = [.withInternetDateTime]
+                self.date = formatter.date(from: dateStr)
+            }
+        } else {
+            self.date = nil
+        }
+
+        // Parse coverImage URL
+        if let urlStr = relatedShow.coverImage, let url = URL(string: urlStr) {
+            self.coverImage = CoverImage(url: url)
+        } else {
+            self.coverImage = nil
+        }
+    }
+
+    /// Create a ShowItem from an ArtistShow (for navigation)
+    init(from artistShow: ArtistResponse.ArtistShow) {
+        self.title = artistShow.title
+        self.slug = artistShow.slug
+        self.dateEnd = nil
+        self.description = nil
+        self.genres = artistShow.genres
+        self.artistsCollection = nil
+
+        // Parse date from ISO string
+        if let dateStr = artistShow.date {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = formatter.date(from: dateStr) {
+                self.date = parsed
+            } else {
+                formatter.formatOptions = [.withInternetDateTime]
+                self.date = formatter.date(from: dateStr)
+            }
+        } else {
+            self.date = nil
+        }
+
+        // Parse coverImage URL
+        if let url = artistShow.coverImageURL {
+            self.coverImage = CoverImage(url: url)
+        } else {
+            self.coverImage = nil
+        }
+    }
 
     /// Returns true if this show is currently live (now is between date and dateEnd)
     var isLiveNow: Bool {

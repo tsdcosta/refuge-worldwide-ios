@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftSoup
 import Kingfisher
 
 // MARK: - Navigation Destinations
@@ -26,10 +25,8 @@ struct ScheduleView: View {
                 LazyVStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                     ForEach(scheduleDays) { day in
                         VStack(alignment: .leading, spacing: Theme.Spacing.base) {
-                            // Day header - serif style
-                            Text(day.date, formatter: fullDateFormatter)
-                                .font(.serifHeading(size: Theme.Typography.headingSmall))
-                                .foregroundColor(Theme.foreground)
+                            // Day header - pill style matching website
+                            DatePill(date: day.date)
                                 .padding(.horizontal, Theme.Spacing.base)
 
                             // Show cards - no gaps, full width
@@ -48,8 +45,9 @@ struct ScheduleView: View {
                     }
                 }
                 .padding(.vertical, Theme.Spacing.lg)
+                .animation(nil, value: scheduleDays.count)
             }
-            .background(Theme.background)
+            .background(Theme.orange) // schedule background is lighter orange
             .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
@@ -62,7 +60,9 @@ struct ScheduleView: View {
             .task {
                 do {
                     let schedule = try await RefugeAPI.shared.fetchSchedule()
-                    scheduleDays = schedule.groupedByDay()
+                    withAnimation(nil) {
+                        scheduleDays = schedule.groupedByDay()
+                    }
                 } catch {
                     print("Failed to fetch schedule:", error)
                 }
@@ -78,11 +78,7 @@ struct ShowCard: View {
     var isLive: Bool = false
 
     private var timeString: String {
-        if let start = show.date, let end = show.dateEnd {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
-        } else if let start = show.date {
+        if let start = show.date {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
             return formatter.string(from: start)
@@ -92,42 +88,79 @@ struct ShowCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Cover image - rectangle on top, full width
-            KFImage(show.coverImage?.url)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 180)
-                .frame(maxWidth: .infinity)
-                .clipped()
+            HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                // Time column - fixed width, light font
+                Text(timeString)
+                    .font(.lightBody(size: 18))
+                    .foregroundColor(Color.black)
+                    .frame(width: 80, alignment: .leading)
 
-            // Bottom section with title and time - centered
-            VStack(spacing: Theme.Spacing.xs) {
-                // Title with optional live dot
-                HStack(spacing: Theme.Spacing.xs) {
-                    Text(show.title)
-                        .font(.mediumBody(size: Theme.Typography.bodySmall))
-                        .foregroundColor(isLive ? Theme.background : Theme.foreground)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
+                // Title - slightly larger, light weight, allow up to 3 lines
+                Text(show.title)
+                    .font(.lightBody(size: 18))
+                    .foregroundColor(Color.black)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    if isLive {
-                        LiveDot()
-                    }
-                }
+                Spacer()
 
-                // Time - smaller than title
-                if !timeString.isEmpty {
-                    Text(timeString)
-                        .font(.lightBody(size: Theme.Typography.caption))
-                        .foregroundColor(isLive ? Theme.background.opacity(0.7) : Theme.secondaryText)
+                if isLive {
+                    LiveDot()
+                        .padding(.top, 6)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Theme.Spacing.sm)
-            .padding(.horizontal, Theme.Spacing.base)
-            .background(isLive ? Theme.foreground : Theme.cardBackground)
+            .padding(.vertical, Theme.Spacing.lg)
+            .padding(.horizontal, Theme.Spacing.lg)
+            .background(isLive ? Color.white : Color.clear)
+
+            // Separator
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color.black.opacity(0.08))
+                .padding(.leading, 80)
         }
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Repeats Playlist Card
+
+struct RepeatsPlaylistCard: View {
+    let lastShowEndTime: Date?
+
+    private var timeString: String {
+        guard let endTime = lastShowEndTime else { return "" }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: endTime)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: Theme.Spacing.md) {
+                Text(timeString)
+                    .font(.lightBody(size: 18))
+                    .foregroundColor(Color.black)
+                    .frame(width: 80, alignment: .leading)
+
+                Text("Repeats Playlist")
+                    .font(.lightBody(size: 18))
+                    .foregroundColor(Color.black)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+            }
+            .padding(.vertical, Theme.Spacing.lg)
+            .padding(.horizontal, Theme.Spacing.lg)
+            .background(Color.clear)
+
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color.black.opacity(0.08))
+                .padding(.leading, 80)
+        }
     }
 }
 
@@ -150,42 +183,27 @@ struct LiveDot: View {
     }
 }
 
-// MARK: - Repeats Playlist Card
+// MARK: - Date Pill Component
 
-struct RepeatsPlaylistCard: View {
-    let lastShowEndTime: Date?
-
-    private var timeString: String {
-        guard let endTime = lastShowEndTime else { return "" }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: endTime)
-    }
+struct DatePill: View {
+    let date: Date
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Orange rectangle on top (no image)
-            Theme.orange
-                .frame(height: 180)
-                .frame(maxWidth: .infinity)
-
-            // Bottom section with title and time - centered
-            VStack(spacing: Theme.Spacing.xs) {
-                Text("Repeats Playlist")
-                    .font(.mediumBody(size: Theme.Typography.bodySmall))
-                    .foregroundColor(Theme.foreground)
-
-                if !timeString.isEmpty {
-                    Text(timeString)
-                        .font(.lightBody(size: Theme.Typography.caption))
-                        .foregroundColor(Theme.secondaryText)
-                }
-            }
-            .frame(maxWidth: .infinity)
+        Text(shortDateFormatter.string(from: date))
+            .font(.serifHeading(size: Theme.Typography.headingSmall))
+            .foregroundColor(.black)
+            .padding(.horizontal, Theme.Spacing.lg)
             .padding(.vertical, Theme.Spacing.sm)
-            .padding(.horizontal, Theme.Spacing.base)
-            .background(Theme.cardBackground)
-        }
+            .background(
+                Capsule()
+                    .fill(Theme.orange)
+                    // Black shadow offset downward creates thicker bottom effect
+                    .shadow(color: .black, radius: 0, x: 0, y: 2)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.black, lineWidth: 1.5)
+            )
     }
 }
 
@@ -202,10 +220,9 @@ struct GenrePill: View {
 
 // MARK: - Date Formatter
 
-private let fullDateFormatter: DateFormatter = {
+private let shortDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
-    formatter.dateStyle = .full
-    formatter.timeStyle = .none
+    formatter.dateFormat = "EEE d MMM"  // "Fri 20 Dec"
     return formatter
 }()
 
@@ -216,6 +233,8 @@ struct ShowDetailView: View {
     @Binding var navigationPath: NavigationPath
     @State private var description: [String] = []
     @State private var genres: [String] = []
+    @State private var relatedShows: [ShowDetail.RelatedShow] = []
+    @State private var artists: [ShowItem.Artist] = []
 
     // Format date like "20 Dec 2025"
     private var formattedDate: String? {
@@ -267,7 +286,7 @@ struct ShowDetailView: View {
                     }
 
                     // Artists - tappable links
-                    if let artists = show.artistsCollection?.items, !artists.isEmpty {
+                    if !artists.isEmpty {
                         ArtistLinksView(artists: artists, navigationPath: $navigationPath)
                     }
 
@@ -287,58 +306,89 @@ struct ShowDetailView: View {
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
+
+                // Related shows - full width, outside padded content
+                if !relatedShows.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Related Shows")
+                            .font(.serifHeading(size: Theme.Typography.headingSmall))
+                            .foregroundColor(Theme.foreground)
+                            .padding(.top, Theme.Spacing.lg)
+                            .padding(.bottom, Theme.Spacing.base)
+                            .padding(.horizontal, Theme.Spacing.lg)
+
+                        ForEach(Array(relatedShows.enumerated()), id: \.element.id) { index, relatedShow in
+                            NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: relatedShow))) {
+                                RelatedShowCard(show: relatedShow, navigationPath: $navigationPath)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            // Separator between items (not after last)
+                            if index < relatedShows.count - 1 {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.1))
+                                    .frame(height: 1)
+                                    .padding(.vertical, Theme.Spacing.sm)
+                                    .padding(.horizontal, Theme.Spacing.lg)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .padding(.bottom, Theme.Spacing.xl)
         }
         .background(Theme.background)
         .task {
+            // Initialize from passed show data if available
+            if let showArtists = show.artistsCollection?.items, artists.isEmpty {
+                artists = showArtists
+            }
             await fetchShowDetail()
         }
     }
 
     func fetchShowDetail() async {
-        guard let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://refugeworldwide.com/radio/\(slug)") else { return }
+        guard let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            guard let html = String(data: data, encoding: .utf8) else { return }
+            // Use the API to fetch show details
+            let showDetail = try await RefugeAPI.shared.fetchShowDetail(slug: slug)
 
-            let doc = try SwiftSoup.parse(html)
-
-            // Extract genres from __NEXT_DATA__ JSON (more reliable than HTML selectors)
-            if let scriptElement = try doc.select("script#__NEXT_DATA__").first(),
-               let jsonString = try? scriptElement.html(),
-               let jsonData = jsonString.data(using: .utf8) {
-                if let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                   let props = json["props"] as? [String: Any],
-                   let pageProps = props["pageProps"] as? [String: Any],
-                   let showData = pageProps["show"] as? [String: Any],
-                   let genresCollection = showData["genresCollection"] as? [String: Any],
-                   let items = genresCollection["items"] as? [[String: Any]] {
-                    genres = items.compactMap { item in
-                        (item["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }.filter { !$0.isEmpty }
-                }
+            // Map genres safely
+            if let g = showDetail.genres {
+                genres = g.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            } else {
+                genres = []
             }
 
-            // Extract description paragraphs
-            let paragraphElements = try doc.select("main p")
-            description = try paragraphElements.array().compactMap { element in
-                let text = try element.text().trimmingCharacters(in: .whitespacesAndNewlines)
-                // Skip paragraphs that look like dates
-                if text.range(of: #"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b"#, options: .regularExpression) != nil {
-                    return nil
-                }
-                // Skip lines starting with "With "
-                if text.range(of: #"^With\s+.+$"#, options: .regularExpression) != nil {
-                    return nil
-                }
-                return text.isEmpty ? nil : text
+            // Map description: prefer pre-split paragraphs, otherwise split text
+            if let paragraphs = showDetail.descriptionParagraphs, !paragraphs.isEmpty {
+                description = paragraphs
+            } else if let text = showDetail.description {
+                description = splitIntoParagraphs(text)
+            } else {
+                description = []
+            }
+
+            // Map related shows
+            relatedShows = showDetail.relatedShows ?? []
+
+            // Map artists from fetched detail
+            if let fetchedArtists = showDetail.artistsCollection?.items {
+                artists = fetchedArtists.map { ShowItem.Artist(name: $0.name, slug: $0.slug) }
             }
         } catch {
             print("Failed to fetch show details:", error)
         }
+    }
+
+    private func splitIntoParagraphs(_ text: String) -> [String] {
+        let parts = text
+            .components(separatedBy: CharacterSet.newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts
     }
 }
 
@@ -436,23 +486,37 @@ struct ArtistDetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.top, Theme.Spacing.sm)
                         }
-
-                        // Past shows
-                        if let shows = artist.shows, !shows.isEmpty {
-                            VStack(alignment: .leading, spacing: Theme.Spacing.base) {
-                                Text("Past Shows")
-                                    .font(.serifHeading(size: Theme.Typography.headingSmall))
-                                    .foregroundColor(Theme.foreground)
-                                    .padding(.top, Theme.Spacing.lg)
-
-                                ForEach(shows) { show in
-                                    ArtistShowCard(show: show)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
                     }
                     .padding(.horizontal, Theme.Spacing.lg)
+
+                    // Past shows - full width, outside padded content
+                    if let shows = artist.shows, !shows.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("Past Shows")
+                                .font(.serifHeading(size: Theme.Typography.headingSmall))
+                                .foregroundColor(Theme.foreground)
+                                .padding(.top, Theme.Spacing.lg)
+                                .padding(.bottom, Theme.Spacing.base)
+                                .padding(.horizontal, Theme.Spacing.lg)
+
+                            ForEach(Array(shows.enumerated()), id: \.element.id) { index, show in
+                                NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: show))) {
+                                    ArtistShowCard(show: show)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+
+                                // Separator between items (not after last)
+                                if index < shows.count - 1 {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.1))
+                                        .frame(height: 1)
+                                        .padding(.vertical, Theme.Spacing.sm)
+                                        .padding(.horizontal, Theme.Spacing.lg)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 } else {
                     Text("Failed to load artist")
                         .font(.lightBody(size: Theme.Typography.bodyBase))
@@ -463,7 +527,6 @@ struct ArtistDetailView: View {
             .padding(.bottom, Theme.Spacing.xl)
         }
         .background(Theme.background)
-        .navigationTitle(artistName)
         .task {
             do {
                 artist = try await RefugeAPI.shared.fetchArtist(slug: artistSlug)
@@ -479,6 +542,7 @@ struct ArtistDetailView: View {
 
 struct ArtistShowCard: View {
     let show: ArtistResponse.ArtistShow
+    private let rowHeight: CGFloat = 80
 
     private var formattedDate: String? {
         guard let dateStr = show.date else { return nil }
@@ -500,28 +564,26 @@ struct ArtistShowCard: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.md) {
-            // Cover image
+        HStack(spacing: Theme.Spacing.md) {
+            // Cover image - indented to match section title
             if let url = show.coverImageURL {
                 KFImage(url)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 64, height: 64)
+                    .frame(width: rowHeight, height: rowHeight)
                     .clipped()
-                    .cornerRadius(Theme.Radius.small)
             } else {
                 Theme.cardBackground
-                    .frame(width: 64, height: 64)
-                    .cornerRadius(Theme.Radius.small)
+                    .frame(width: rowHeight, height: rowHeight)
             }
 
+            // Text content - left aligned
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 Text(show.title)
                     .font(.mediumBody(size: Theme.Typography.bodySmall))
                     .foregroundColor(Theme.foreground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
 
                 if let date = formattedDate {
                     Text(date)
@@ -542,7 +604,7 @@ struct ArtistShowCard: View {
                                 .padding(.vertical, 3)
                                 .overlay(
                                     Capsule()
-                                        .stroke(Theme.foreground.opacity(0.25), lineWidth: 1)
+                                        .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
                                 )
                                 .clipShape(Capsule())
                         }
@@ -550,9 +612,130 @@ struct ArtistShowCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, Theme.Spacing.lg)
         }
-        .padding(Theme.Spacing.md)
-        .background(Theme.cardBackground)
-        .cornerRadius(Theme.Radius.medium)
+        .padding(.leading, Theme.Spacing.lg)
+        .frame(height: rowHeight)
+        .background(Theme.background)
+    }
+}
+
+// MARK: - Related Show Card
+
+struct RelatedShowCard: View {
+    let show: ShowDetail.RelatedShow
+    @Binding var navigationPath: NavigationPath
+    private let rowHeight: CGFloat = 80
+
+    private var formattedDate: String? {
+        guard let dateStr = show.date else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: dateStr) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            return displayFormatter.string(from: date)
+        }
+        // Fallback without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: dateStr) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            return displayFormatter.string(from: date)
+        }
+        return nil
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            // Cover image - indented to match section title
+            if let url = show.coverImageURL {
+                KFImage(url)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: rowHeight, height: rowHeight)
+                    .clipped()
+            } else {
+                Theme.cardBackground
+                    .frame(width: rowHeight, height: rowHeight)
+            }
+
+            // Text content - left aligned
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(show.title)
+                    .font(.mediumBody(size: Theme.Typography.bodySmall))
+                    .foregroundColor(Theme.foreground)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                if let date = formattedDate {
+                    Text(date)
+                        .font(.lightBody(size: Theme.Typography.caption))
+                        .foregroundColor(Theme.secondaryText)
+                }
+
+                // Artist links
+                if let artists = show.artistsCollection?.items, !artists.isEmpty {
+                    RelatedShowArtistLinks(artists: artists, navigationPath: $navigationPath)
+                }
+
+                // Genre badges
+                if let genres = show.genres, !genres.isEmpty {
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ForEach(genres.prefix(2), id: \.self) { genre in
+                            Text(genre)
+                                .font(.system(size: 9, weight: .medium))
+                                .textCase(.uppercase)
+                                .tracking(0.3)
+                                .foregroundColor(Theme.foreground.opacity(0.7))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
+                                )
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, Theme.Spacing.lg)
+        }
+        .padding(.leading, Theme.Spacing.lg)
+        .frame(height: rowHeight)
+        .background(Theme.background)
+    }
+}
+
+// MARK: - Related Show Artist Links
+
+struct RelatedShowArtistLinks: View {
+    let artists: [ShowDetail.Artist]
+    @Binding var navigationPath: NavigationPath
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(artists.enumerated()), id: \.element.slug) { index, artist in
+                NavigationLink(value: ScheduleDestination.artistDetail(slug: artist.slug, name: artist.name)) {
+                    Text(artist.name)
+                        .font(.lightBody(size: Theme.Typography.caption))
+                        .foregroundColor(Theme.foreground)
+                        .underline()
+                }
+
+                if artists.count > 1 {
+                    if index < artists.count - 2 {
+                        Text(", ")
+                            .font(.lightBody(size: Theme.Typography.caption))
+                            .foregroundColor(Theme.secondaryText)
+                    } else if index == artists.count - 2 {
+                        Text(" & ")
+                            .font(.lightBody(size: Theme.Typography.caption))
+                            .foregroundColor(Theme.secondaryText)
+                    }
+                }
+            }
+        }
     }
 }

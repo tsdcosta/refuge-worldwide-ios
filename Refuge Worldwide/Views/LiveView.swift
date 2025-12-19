@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftSoup
 
 struct LiveView: View {
     @ObservedObject private var radio = RadioPlayer.shared
@@ -158,44 +157,23 @@ struct LiveView: View {
             updateNowPlayingMetadata()
 
             // Fetch the show page description and genres if slug exists
-            if let slug = liveShow?.slug,
-               let encodedSlug = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-               let showURL = URL(string: "https://refugeworldwide.com/radio/\(encodedSlug)") {
-                let (data, _) = try await URLSession.shared.data(from: showURL)
-                if let html = String(data: data, encoding: .utf8) {
-                    // Parse with SwiftSoup
-                    let doc = try SwiftSoup.parse(html)
+            if let slug = liveShow?.slug {
+                do {
+                    let detail = try await RefugeAPI.shared.fetchShowDetail(slug: slug)
 
-                    // Extract genres from __NEXT_DATA__ JSON (more reliable than HTML selectors)
-                    if let scriptElement = try doc.select("script#__NEXT_DATA__").first(),
-                       let jsonString = try? scriptElement.html(),
-                       let jsonData = jsonString.data(using: .utf8) {
-                        if let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                           let props = json["props"] as? [String: Any],
-                           let pageProps = props["pageProps"] as? [String: Any],
-                           let showData = pageProps["show"] as? [String: Any],
-                           let genresCollection = showData["genresCollection"] as? [String: Any],
-                           let items = genresCollection["items"] as? [[String: Any]] {
-                            liveGenres = items.compactMap { item in
-                                (item["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                            }.filter { !$0.isEmpty }
-                        }
+                    if let g = detail.genres {
+                        liveGenres = g.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
                     }
 
-                    // Extract all paragraph texts from main content
-                    let paragraphElements = try doc.select("main p")
-                    liveDescription = try paragraphElements.array().compactMap { element in
-                        let text = try element.text().trimmingCharacters(in: .whitespacesAndNewlines)
-                        // Skip paragraphs that look like dates
-                        if text.range(of: #"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b"#, options: .regularExpression) != nil {
-                            return nil
-                        }
-                        // Skip lines starting with "With "
-                        if text.range(of: #"^With\s+.+$"#, options: .regularExpression) != nil {
-                            return nil
-                        }
-                        return text.isEmpty ? nil : text
+                    if let paragraphs = detail.descriptionParagraphs, !paragraphs.isEmpty {
+                        liveDescription = paragraphs
+                    } else if let text = detail.description {
+                        liveDescription = splitIntoParagraphs(text)
+                    } else {
+                        liveDescription = []
                     }
+                } catch {
+                    print("Failed to fetch show detail via API, original HTML fallback could be used:", error)
                 }
             }
         } catch {
@@ -214,6 +192,14 @@ struct LiveView: View {
             subtitle: timeString,
             artworkURL: show.coverImage?.url
         )
+    }
+
+    private func splitIntoParagraphs(_ text: String) -> [String] {
+        let parts = text
+            .components(separatedBy: CharacterSet.newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts
     }
 }
 
