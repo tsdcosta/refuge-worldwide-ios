@@ -47,7 +47,7 @@ struct ScheduleView: View {
                 .padding(.vertical, Theme.Spacing.lg)
                 .animation(nil, value: scheduleDays.count)
             }
-            .background(Theme.orange) // schedule background is lighter orange
+            .background(Theme.orange)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
@@ -92,13 +92,12 @@ struct ShowCard: View {
                 // Time column - fixed width, light font
                 Text(timeString)
                     .font(.lightBody(size: 18))
-                    .foregroundColor(Color.black)
+                    .foregroundColor(isLive ? Color.white : Color.black)
                     .frame(width: 80, alignment: .leading)
 
-                // Title - slightly larger, light weight, allow up to 3 lines
                 Text(show.title)
                     .font(.lightBody(size: 18))
-                    .foregroundColor(Color.black)
+                    .foregroundColor(isLive ? Color.white : Color.black)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -112,13 +111,12 @@ struct ShowCard: View {
             }
             .padding(.vertical, Theme.Spacing.lg)
             .padding(.horizontal, Theme.Spacing.lg)
-            .background(isLive ? Color.white : Color.clear)
+            .background(isLive ? Color.black : Color.clear)
 
             // Separator
             Rectangle()
                 .frame(height: 1)
                 .foregroundColor(Color.black.opacity(0.08))
-                .padding(.leading, 80)
         }
         .contentShape(Rectangle())
     }
@@ -159,7 +157,6 @@ struct RepeatsPlaylistCard: View {
             Rectangle()
                 .frame(height: 1)
                 .foregroundColor(Color.black.opacity(0.08))
-                .padding(.leading, 80)
         }
     }
 }
@@ -295,6 +292,7 @@ struct ShowDetailView: View {
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
+                .padding(.bottom, Theme.Spacing.lg)
 
                 // Related shows - full width, outside padded content
                 if !relatedShows.isEmpty {
@@ -494,6 +492,7 @@ struct ArtistDetailView: View {
                         }
                     }
                     .padding(.horizontal, Theme.Spacing.lg)
+                    .padding(.bottom, Theme.Spacing.lg)
 
                     // Past shows - full width, outside padded content
                     if let shows = artist.shows, !shows.isEmpty {

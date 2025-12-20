@@ -82,11 +82,6 @@ struct LiveView: View {
                                     .foregroundColor(Theme.secondaryText)
                             }
 
-                            // Artists - tappable links
-                            if let artists = show.artistsCollection?.items, !artists.isEmpty {
-                                ArtistLinksView(artists: artists, navigationPath: $navigationPath)
-                            }
-
                             // Genre badges - website style (centered)
                             if !liveGenres.isEmpty {
                                 HStack(spacing: Theme.Spacing.sm) {
@@ -94,6 +89,11 @@ struct LiveView: View {
                                         GenreBadge(genre: genre)
                                     }
                                 }
+                            }
+                            
+                            // Artists - tappable links
+                            if let artists = show.artistsCollection?.items, !artists.isEmpty {
+                                ArtistLinksView(artists: artists, navigationPath: $navigationPath)
                             }
 
                             // Description
