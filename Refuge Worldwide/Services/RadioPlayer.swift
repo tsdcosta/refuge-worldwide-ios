@@ -298,6 +298,9 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var isBuffering = false
     @Published private(set) var isLiveStream = true
     @Published private(set) var currentPlayingURL: URL?
+    @Published private(set) var currentPlayingShow: ShowItem?
+    @Published private(set) var currentPosition: Double = 0
+    @Published private(set) var duration: Double = 0
     @Published var nowPlayingTitle = "Refuge Worldwide"
     @Published var nowPlayingSubtitle = ""
     @Published var nowPlayingArtworkURL: URL?
@@ -326,7 +329,17 @@ final class RadioPlayer: ObservableObject {
                 self.isPlaying = self.soundCloudPlayer.isPlaying
                 self.isBuffering = self.soundCloudPlayer.isBuffering
                 self.currentPlayingURL = self.soundCloudPlayer.currentURL
+                self.duration = self.soundCloudPlayer.duration
                 self.updateNowPlayingPlaybackState()
+            }
+        }
+
+        // Listen to SoundCloud player progress changes
+        soundCloudPlayer.onProgressChanged = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.isSoundCloudPlaying else { return }
+                self.currentPosition = self.soundCloudPlayer.currentPosition
+                self.duration = self.soundCloudPlayer.duration
             }
         }
 
@@ -350,7 +363,7 @@ final class RadioPlayer: ObservableObject {
         updateNowPlayingPlaybackState()
     }
 
-    func playURL(_ url: URL, title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil) {
+    func playURL(_ url: URL, title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil, show: ShowItem? = nil) {
         // Update metadata first
         if let title = title {
             nowPlayingTitle = title
@@ -367,6 +380,7 @@ final class RadioPlayer: ObservableObject {
             // Stop the audio engine if playing
             engine.stop()
             isSoundCloudPlaying = true
+            currentPlayingShow = show
             soundCloudPlayer.play(url: url)
         } else {
             // Stop SoundCloud if playing
@@ -374,6 +388,7 @@ final class RadioPlayer: ObservableObject {
                 soundCloudPlayer.stop()
                 isSoundCloudPlaying = false
             }
+            currentPlayingShow = nil
             engine.playURL(url)
         }
 
@@ -396,7 +411,16 @@ final class RadioPlayer: ObservableObject {
         isPlaying = false
         isBuffering = false
         currentPlayingURL = nil
+        currentPlayingShow = nil
+        currentPosition = 0
+        duration = 0
         updateNowPlayingPlaybackState()
+    }
+
+    func seekTo(position: Double) {
+        guard isSoundCloudPlaying else { return }
+        soundCloudPlayer.seekTo(position: position)
+        currentPosition = position
     }
 
     func toggle() {
@@ -417,6 +441,11 @@ final class RadioPlayer: ObservableObject {
     /// Check if a specific URL is currently playing
     func isPlayingURL(_ url: URL) -> Bool {
         return isPlaying && currentPlayingURL == url
+    }
+
+    /// Check if seeking is supported for current playback (SoundCloud only)
+    var canSeek: Bool {
+        return isSoundCloudPlaying && duration > 0
     }
 
     // MARK: - Now Playing Info

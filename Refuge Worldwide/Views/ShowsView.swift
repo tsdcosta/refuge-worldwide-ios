@@ -160,7 +160,7 @@ struct ShowDetailContent: View {
                             if isThisPlaying {
                                 radio.stop()
                             } else {
-                                radio.playURL(url, title: show.title, artworkURL: show.coverImage?.url)
+                                radio.playURL(url, title: show.title, artworkURL: show.coverImage?.url, show: show)
                             }
                         } label: {
                             ZStack {
@@ -182,6 +182,18 @@ struct ShowDetailContent: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         .padding(.top, Theme.Spacing.lg)
+
+                        // Seek bar - only visible when this show is playing
+                        if isThisPlaying && radio.canSeek {
+                            SeekBarView(
+                                position: Binding(
+                                    get: { radio.currentPosition },
+                                    set: { radio.seekTo(position: $0) }
+                                ),
+                                duration: radio.duration
+                            )
+                            .padding(.top, Theme.Spacing.md)
+                        }
                     }
 
                     // Description
@@ -304,5 +316,92 @@ struct ShowDetailContent: View {
             .components(separatedBy: CharacterSet.newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+}
+
+// MARK: - Seek Bar
+
+struct SeekBarView: View {
+    @Binding var position: Double
+    let duration: Double
+
+    @State private var isDragging = false
+    @State private var dragPosition: Double = 0
+
+    private var displayPosition: Double {
+        isDragging ? dragPosition : position
+    }
+
+    private var progress: Double {
+        guard duration > 0 else { return 0 }
+        return displayPosition / duration
+    }
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.sm) {
+            // Slider track
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background track
+                    Capsule()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(height: 4)
+
+                    // Progress track
+                    Capsule()
+                        .fill(Theme.foreground)
+                        .frame(width: max(0, geometry.size.width * progress), height: 4)
+
+                    // Drag handle
+                    Circle()
+                        .fill(Theme.foreground)
+                        .frame(width: 16, height: 16)
+                        .offset(x: max(0, min(geometry.size.width - 16, geometry.size.width * progress - 8)))
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            isDragging = true
+                            let newProgress = max(0, min(1, value.location.x / geometry.size.width))
+                            dragPosition = newProgress * duration
+                        }
+                        .onEnded { value in
+                            let newProgress = max(0, min(1, value.location.x / geometry.size.width))
+                            position = newProgress * duration
+                            isDragging = false
+                        }
+                )
+            }
+            .frame(height: 16)
+
+            // Time labels
+            HStack {
+                Text(formatTime(displayPosition))
+                    .font(.lightBody(size: Theme.Typography.caption))
+                    .foregroundColor(Theme.secondaryText)
+                    .monospacedDigit()
+
+                Spacer()
+
+                Text(formatTime(duration))
+                    .font(.lightBody(size: Theme.Typography.caption))
+                    .foregroundColor(Theme.secondaryText)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+        let totalSeconds = Int(seconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%d:%02d", minutes, secs)
+        }
     }
 }

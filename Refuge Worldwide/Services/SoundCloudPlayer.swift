@@ -18,6 +18,8 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
     private var _isPlaying = false
     private var _isBuffering = false
     private var _currentURL: URL?
+    private var _currentPosition: Double = 0
+    private var _duration: Double = 0
 
     var isPlaying: Bool {
         stateLock.withLock { _isPlaying }
@@ -31,7 +33,16 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
         stateLock.withLock { _currentURL }
     }
 
+    var currentPosition: Double {
+        stateLock.withLock { _currentPosition }
+    }
+
+    var duration: Double {
+        stateLock.withLock { _duration }
+    }
+
     var onStateChanged: (() -> Void)?
+    var onProgressChanged: (() -> Void)?
 
     private override init() {
         super.init()
@@ -70,8 +81,18 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
             _isPlaying = false
             _isBuffering = false
             _currentURL = nil
+            _currentPosition = 0
+            _duration = 0
         }
         onStateChanged?()
+    }
+
+    func seekTo(position: Double) {
+        let positionMs = Int(position * 1000)
+        print("[SoundCloudPlayer] Seek to \(positionMs)ms")
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("widget.seekTo(\(positionMs));", completionHandler: nil)
+        }
     }
 
     private func setupAndPlay(url: URL) {
@@ -130,6 +151,9 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
 
                 widget.bind(SC.Widget.Events.READY, function() {
                     console.log('Widget ready');
+                    widget.getDuration(function(duration) {
+                        window.webkit.messageHandlers.soundcloud.postMessage({event: 'duration', duration: duration});
+                    });
                     widget.play();
                 });
 
@@ -146,6 +170,14 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
                 widget.bind(SC.Widget.Events.FINISH, function() {
                     console.log('Finished');
                     window.webkit.messageHandlers.soundcloud.postMessage({event: 'finish'});
+                });
+
+                widget.bind(SC.Widget.Events.PLAY_PROGRESS, function(e) {
+                    window.webkit.messageHandlers.soundcloud.postMessage({
+                        event: 'progress',
+                        position: e.currentPosition,
+                        duration: e.loadedProgress ? e.loadedProgress : 0
+                    });
                 });
 
                 widget.bind(SC.Widget.Events.ERROR, function(e) {
@@ -189,8 +221,6 @@ extension SoundCloudPlayer: WKScriptMessageHandler {
         guard let body = message.body as? [String: Any],
               let event = body["event"] as? String else { return }
 
-        print("[SoundCloudPlayer] Received event: \(event)")
-
         switch event {
         case "play":
             updateState(playing: true, buffering: false)
@@ -198,6 +228,19 @@ extension SoundCloudPlayer: WKScriptMessageHandler {
             updateState(playing: false, buffering: false)
         case "error":
             updateState(playing: false, buffering: false)
+        case "duration":
+            if let durationMs = body["duration"] as? Double {
+                stateLock.withLock {
+                    _duration = durationMs / 1000.0
+                }
+            }
+        case "progress":
+            if let positionMs = body["position"] as? Double {
+                stateLock.withLock {
+                    _currentPosition = positionMs / 1000.0
+                }
+                onProgressChanged?()
+            }
         default:
             break
         }

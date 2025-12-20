@@ -19,6 +19,7 @@ struct RootView: View {
     @State private var scheduleNavigationPath = NavigationPath()
     @State private var showsNavigationPath = NavigationPath()
     @State private var selectedShow: ShowItem?
+    @ObservedObject private var radio = RadioPlayer.shared
 
     var body: some View {
         TabView(selection: tabSelection) {
@@ -76,6 +77,16 @@ struct RootView: View {
                     if newTab == .schedule {
                         scheduleNavigationPath = NavigationPath()
                     } else if newTab == .shows {
+                        showsNavigationPath = NavigationPath()
+                        // Navigate to currently playing show if one exists
+                        if let playingShow = radio.currentPlayingShow {
+                            selectedShow = playingShow
+                        }
+                    }
+                } else if newTab == .shows {
+                    // When switching to Shows tab, navigate to currently playing show if exists
+                    if let playingShow = radio.currentPlayingShow {
+                        selectedShow = playingShow
                         showsNavigationPath = NavigationPath()
                     }
                 }
