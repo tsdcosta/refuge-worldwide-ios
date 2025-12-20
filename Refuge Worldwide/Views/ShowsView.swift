@@ -102,6 +102,11 @@ struct ShowDetailContent: View {
         return radio.isPlayingURL(url)
     }
 
+    private var isThisPaused: Bool {
+        guard let url = streamURL else { return false }
+        return radio.isPausedURL(url)
+    }
+
     private var isThisBuffering: Bool {
         guard let url = streamURL else { return false }
         return radio.isBuffering && radio.currentPlayingURL == url
@@ -158,7 +163,9 @@ struct ShowDetailContent: View {
                         Button {
                             guard let url = streamURL else { return }
                             if isThisPlaying {
-                                radio.stop()
+                                radio.pause()
+                            } else if isThisPaused {
+                                radio.resume()
                             } else {
                                 radio.playURL(url, title: show.title, artworkURL: show.coverImage?.url, show: show)
                             }
@@ -173,7 +180,7 @@ struct ShowDetailContent: View {
                                         .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
                                         .scaleEffect(1.0)
                                 } else {
-                                    Image(systemName: isThisPlaying ? "stop.fill" : "play.fill")
+                                    Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
                                         .font(.system(size: 24, weight: .bold))
                                         .foregroundColor(Theme.background)
                                         .offset(x: isThisPlaying ? 0 : 2)
@@ -183,8 +190,8 @@ struct ShowDetailContent: View {
                         .buttonStyle(PlainButtonStyle())
                         .padding(.top, Theme.Spacing.lg)
 
-                        // Seek bar - only visible when this show is playing
-                        if isThisPlaying && radio.canSeek {
+                        // Seek bar - visible when playing or paused
+                        if (isThisPlaying || isThisPaused) && radio.canSeek {
                             SeekBarView(
                                 position: Binding(
                                     get: { radio.currentPosition },

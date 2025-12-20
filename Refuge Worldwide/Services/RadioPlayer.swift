@@ -400,6 +400,28 @@ final class RadioPlayer: ObservableObject {
         updateNowPlayingPlaybackState()
     }
 
+    func pause() {
+        if isSoundCloudPlaying {
+            soundCloudPlayer.pause()
+            isPlaying = false
+            isBuffering = false
+            updateNowPlayingPlaybackState()
+        } else {
+            stop()
+        }
+    }
+
+    func resume() {
+        if isSoundCloudPlaying && currentPlayingURL != nil {
+            soundCloudPlayer.resume()
+            isPlaying = true
+            isBuffering = true
+            updateNowPlayingPlaybackState()
+        } else {
+            play()
+        }
+    }
+
     func stop() {
         if isSoundCloudPlaying {
             soundCloudPlayer.stop()
@@ -426,10 +448,9 @@ final class RadioPlayer: ObservableObject {
     func toggle() {
         if isSoundCloudPlaying {
             if soundCloudPlayer.isPlaying {
-                stop()
+                pause()
             } else {
-                // Can't resume SoundCloud easily, just stop
-                stop()
+                resume()
             }
         } else if engine.playbackIntent {
             stop()
@@ -441,6 +462,16 @@ final class RadioPlayer: ObservableObject {
     /// Check if a specific URL is currently playing
     func isPlayingURL(_ url: URL) -> Bool {
         return isPlaying && currentPlayingURL == url
+    }
+
+    /// Check if a specific URL is the current one (playing or paused)
+    func isCurrentURL(_ url: URL) -> Bool {
+        return currentPlayingURL == url
+    }
+
+    /// Check if a specific URL is currently paused
+    func isPausedURL(_ url: URL) -> Bool {
+        return !isPlaying && isSoundCloudPlaying && currentPlayingURL == url
     }
 
     /// Check if seeking is supported for current playback (SoundCloud only)

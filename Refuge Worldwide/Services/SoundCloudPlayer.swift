@@ -70,6 +70,34 @@ final class SoundCloudPlayer: NSObject, @unchecked Sendable {
         }
     }
 
+    func pause() {
+        print("[SoundCloudPlayer] Pause requested")
+
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("widget.pause();", completionHandler: nil)
+        }
+
+        stateLock.withLock {
+            _isPlaying = false
+            _isBuffering = false
+        }
+        onStateChanged?()
+    }
+
+    func resume() {
+        print("[SoundCloudPlayer] Resume requested")
+
+        stateLock.withLock {
+            _isPlaying = true
+            _isBuffering = true
+        }
+        onStateChanged?()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("widget.play();", completionHandler: nil)
+        }
+    }
+
     func stop() {
         print("[SoundCloudPlayer] Stop requested")
 
