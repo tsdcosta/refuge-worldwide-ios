@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct LiveView: View {
+    var onShowSelected: ((ShowItem) -> Void)?
+
     @ObservedObject private var radio = RadioPlayer.shared
     @State private var liveShow: ShowItem?
     @State private var liveDescription: [String] = []
@@ -129,9 +131,9 @@ struct LiveView: View {
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
                 case .showDetail(let show):
-                    ShowDetailView(show: show, navigationPath: $navigationPath)
+                    ShowDetailContent(show: show, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath)
+                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 }
             }
         }

@@ -11,25 +11,52 @@ import UIKit
 enum Tab: Hashable {
     case live
     case schedule
+    case shows
 }
 
 struct RootView: View {
     @State private var selectedTab: Tab = .live
     @State private var scheduleNavigationPath = NavigationPath()
+    @State private var showsNavigationPath = NavigationPath()
+    @State private var selectedShow: ShowItem?
 
     var body: some View {
         TabView(selection: tabSelection) {
-            LiveView()
+            LiveView(onShowSelected: { show in
+                selectedShow = show
+                showsNavigationPath = NavigationPath()
+                selectedTab = .shows
+            })
                 .tabItem {
                     Label("Live", systemImage: "dot.radiowaves.left.and.right")
                 }
                 .tag(Tab.live)
 
-            ScheduleView(navigationPath: $scheduleNavigationPath)
+            ScheduleView(
+                navigationPath: $scheduleNavigationPath,
+                onShowSelected: { show in
+                    selectedShow = show
+                    showsNavigationPath = NavigationPath()
+                    selectedTab = .shows
+                }
+            )
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
                 .tag(Tab.schedule)
+
+            ShowsView(
+                show: selectedShow,
+                navigationPath: $showsNavigationPath,
+                onShowSelected: { show in
+                    selectedShow = show
+                    showsNavigationPath = NavigationPath()
+                }
+            )
+                .tabItem {
+                    Label("Shows", systemImage: "play.circle")
+                }
+                .tag(Tab.shows)
         }
         .tint(Theme.orange) // Use orange accent for radio app
         .preferredColorScheme(.dark)
@@ -45,8 +72,12 @@ struct RootView: View {
             get: { selectedTab },
             set: { newTab in
                 // If tapping the same tab, pop to root
-                if newTab == selectedTab && newTab == .schedule {
-                    scheduleNavigationPath = NavigationPath()
+                if newTab == selectedTab {
+                    if newTab == .schedule {
+                        scheduleNavigationPath = NavigationPath()
+                    } else if newTab == .shows {
+                        showsNavigationPath = NavigationPath()
+                    }
                 }
                 selectedTab = newTab
             }

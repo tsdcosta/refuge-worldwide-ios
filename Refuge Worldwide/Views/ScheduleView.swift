@@ -17,6 +17,7 @@ enum ScheduleDestination: Hashable {
 
 struct ScheduleView: View {
     @Binding var navigationPath: NavigationPath
+    var onShowSelected: ((ShowItem) -> Void)?
     @State private var scheduleDays: [ScheduleDay] = []
 
     var body: some View {
@@ -32,7 +33,9 @@ struct ScheduleView: View {
                             // Show cards - no gaps, full width
                             LazyVStack(spacing: 0) {
                                 ForEach(day.shows) { show in
-                                    NavigationLink(value: ScheduleDestination.showDetail(show)) {
+                                    Button {
+                                        onShowSelected?(show)
+                                    } label: {
                                         ShowCard(show: show, isLive: show.isLiveNow)
                                     }
                                     .buttonStyle(PlainButtonStyle())
@@ -52,9 +55,9 @@ struct ScheduleView: View {
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
                 case .showDetail(let show):
-                    ShowDetailView(show: show, navigationPath: $navigationPath)
+                    ShowDetailContent(show: show, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath)
+                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 }
             }
             .task {
@@ -212,190 +215,6 @@ private let shortDateFormatter: DateFormatter = {
     return formatter
 }()
 
-// MARK: - Show Detail View
-
-struct ShowDetailView: View {
-    let show: ShowItem
-    @Binding var navigationPath: NavigationPath
-    @State private var description: [String] = []
-    @State private var genres: [String] = []
-    @State private var relatedShows: [ShowDetail.RelatedShow] = []
-    @State private var artists: [ShowItem.Artist] = []
-
-    // Format date like "20 Dec 2025"
-    private var formattedDate: String? {
-        guard let date = show.date else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM yyyy"
-        return formatter.string(from: date)
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Cover image - full width, square
-                if let url = show.coverImage?.url {
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay(
-                            KFImage(url)
-                                .resizable()
-                                .scaledToFill()
-                        )
-                        .clipped()
-                }
-
-                VStack(spacing: Theme.Spacing.base) {
-                    // Date - like "20 Dec 2025"
-                    if let date = formattedDate {
-                        Text(date)
-                            .font(.lightBody(size: Theme.Typography.bodySmall))
-                            .foregroundColor(Theme.secondaryText)
-                            .padding(.top, Theme.Spacing.lg)
-                    }
-
-                    // Title - serif style
-                    Text(show.title.replacingOccurrences(of: #" - .*$"#, with: "", options: .regularExpression))
-                        .font(.serifHeading(size: Theme.Typography.headingBase))
-                        .foregroundColor(Theme.foreground)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, formattedDate == nil ? Theme.Spacing.lg : Theme.Spacing.sm)
-
-                    // Genre badges (centered)
-                    if !genres.isEmpty {
-                        HStack(spacing: Theme.Spacing.sm) {
-                            ForEach(genres, id: \.self) { genre in
-                                GenreBadge(genre: genre)
-                            }
-                        }
-                    }
-
-                    // Artists - tappable links
-                    if !artists.isEmpty {
-                        ArtistLinksView(artists: artists, navigationPath: $navigationPath)
-                    }
-
-                    // Description
-                    if !description.isEmpty {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                            ForEach(description, id: \.self) { paragraph in
-                                Text(paragraph)
-                                    .font(.lightBody(size: Theme.Typography.bodyBase))
-                                    .foregroundColor(Theme.foreground.opacity(0.9))
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, Theme.Spacing.md)
-                    }
-                }
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.bottom, Theme.Spacing.lg)
-
-                // Related shows - full width, outside padded content
-                if !relatedShows.isEmpty {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Related Shows")
-                            .font(.serifHeading(size: Theme.Typography.headingSmall))
-                            .foregroundColor(Theme.foreground)
-                            .padding(.top, Theme.Spacing.lg)
-                            .padding(.bottom, Theme.Spacing.base)
-                            .padding(.horizontal, Theme.Spacing.lg)
-
-                        ForEach(Array(relatedShows.enumerated()), id: \.element.id) { index, relatedShow in
-                            HStack(spacing: Theme.Spacing.md) {
-                                NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: relatedShow))) {
-                                    RelatedShowCard(show: relatedShow, navigationPath: $navigationPath)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                                // Play button moved out of the card so it is tappable independently
-                                if let mixcloudLink = relatedShow.mixcloudLink, !mixcloudLink.isEmpty {
-                                    ShowPlayButton(
-                                        mixcloudLink: mixcloudLink,
-                                        title: relatedShow.title,
-                                        artworkURL: relatedShow.coverImageURL
-                                    )
-                                    .frame(width: 44, height: 44)
-                                    .padding(.trailing, Theme.Spacing.lg)
-                                } else {
-                                    Spacer()
-                                        .frame(width: Theme.Spacing.lg)
-                                }
-                            }
-                             
-                             // Separator between items (not after last)
-                             if index < relatedShows.count - 1 {
-                                 Rectangle()
-                                     .fill(Color.white.opacity(0.1))
-                                     .frame(height: 1)
-                                     .padding(.vertical, Theme.Spacing.sm)
-                                     .padding(.horizontal, Theme.Spacing.lg)
-                             }
-                         }
-                     }
-                     .frame(maxWidth: .infinity, alignment: .leading)
-                 }
-             }
-             .padding(.bottom, Theme.Spacing.xl)
-         }
-         .background(Theme.background)
-         .task {
-             // Initialize from passed show data if available
-             if let showArtists = show.artistsCollection?.items, artists.isEmpty {
-                 artists = showArtists
-             }
-             await fetchShowDetail()
-         }
-     }
-
-     func fetchShowDetail() async {
-        guard let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return }
-
-        do {
-            // Use the API to fetch show details
-            let showDetail = try await RefugeAPI.shared.fetchShowDetail(slug: slug)
-
-            // Map genres safely
-            if let g = showDetail.genres {
-                genres = g.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-            } else {
-                genres = []
-            }
-
-            // Map description: prefer pre-split paragraphs, otherwise split text
-            if let paragraphs = showDetail.descriptionParagraphs, !paragraphs.isEmpty {
-                description = paragraphs
-            } else if let text = showDetail.description {
-                description = splitIntoParagraphs(text)
-            } else {
-                description = []
-            }
-
-            // Map related shows
-            relatedShows = showDetail.relatedShows ?? []
-
-            // Map artists from fetched detail
-            if let fetchedArtists = showDetail.artistsCollection?.items {
-                artists = fetchedArtists.map { ShowItem.Artist(name: $0.name, slug: $0.slug) }
-            }
-        } catch {
-            print("Failed to fetch show details:", error)
-        }
-    }
-
-    private func splitIntoParagraphs(_ text: String) -> [String] {
-        let parts = text
-            .components(separatedBy: CharacterSet.newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return parts
-    }
-}
-
 // MARK: - Artist Links View
 
 struct ArtistLinksView: View {
@@ -449,6 +268,7 @@ struct ArtistDetailView: View {
     let artistSlug: String
     let artistName: String
     @Binding var navigationPath: NavigationPath
+    var onShowSelected: ((ShowItem) -> Void)?
     @State private var artist: ArtistResponse?
     @State private var isLoading = true
 
@@ -506,25 +326,14 @@ struct ArtistDetailView: View {
 
                             ForEach(Array(shows.enumerated()), id: \.element.id) { index, show in
                                 HStack(spacing: Theme.Spacing.md) {
-                                    NavigationLink(value: ScheduleDestination.showDetail(ShowItem(from: show))) {
+                                    Button {
+                                        onShowSelected?(ShowItem(from: show))
+                                    } label: {
                                         ArtistShowCard(show: show)
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                    // Play button moved out so it can be tapped separately from navigation
-                                    if let mixcloudLink = show.mixcloudLink, !mixcloudLink.isEmpty {
-                                        ShowPlayButton(
-                                            mixcloudLink: mixcloudLink,
-                                            title: show.title,
-                                            artworkURL: show.coverImageURL
-                                        )
-                                        .frame(width: 44, height: 44)
-                                        .padding(.trailing, Theme.Spacing.lg)
-                                    } else {
-                                        Spacer()
-                                            .frame(width: Theme.Spacing.lg)
-                                    }
                                 }
 
                                  // Separator between items (not after last)
@@ -761,58 +570,5 @@ struct RelatedShowArtistLinks: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Show Play Button
-
-struct ShowPlayButton: View {
-    let mixcloudLink: String
-    let title: String
-    let artworkURL: URL?
-
-    @ObservedObject private var radio = RadioPlayer.shared
-
-    private var streamURL: URL? {
-        URL(string: mixcloudLink)
-    }
-
-    private var isThisPlaying: Bool {
-        guard let url = streamURL else { return false }
-        return radio.isPlayingURL(url)
-    }
-
-    private var isThisBuffering: Bool {
-        guard let url = streamURL else { return false }
-        return radio.isBuffering && radio.currentPlayingURL == url
-    }
-
-    var body: some View {
-        Button {
-            guard let url = streamURL else { return }
-            if isThisPlaying {
-                radio.stop()
-            } else {
-                radio.playURL(url, title: title, artworkURL: artworkURL)
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(Theme.foreground)
-                    .frame(width: 36, height: 36)
-
-                if isThisBuffering {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
-                        .scaleEffect(0.7)
-                } else {
-                    Image(systemName: isThisPlaying ? "stop.fill" : "play.fill")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(Theme.background)
-                        .offset(x: isThisPlaying ? 0 : 1)
-                }
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }
