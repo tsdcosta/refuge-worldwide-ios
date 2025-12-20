@@ -45,7 +45,7 @@ final class RefugeAPI {
         let url = URL(string: "https://refugeworldwide.com/api/schedule")!
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try decoder.decode(ScheduleResponse.self, from: data)
-        return response.schedule
+        return response.schedule ?? []
     }
 
     func fetchLiveNow() async throws -> ShowItem? {

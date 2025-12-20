@@ -60,8 +60,8 @@ struct LiveView: View {
                                 .background(Theme.cardBackground)
                         }
 
-                        // Live indicator
-                        if radio.isPlaying || radio.isBuffering {
+                        // Live indicator - only show when live stream is active
+                        if (radio.isPlaying || radio.isBuffering) && radio.isLiveStream {
                             LiveIndicator()
                                 .padding(Theme.Spacing.base)
                         }
@@ -116,8 +116,11 @@ struct LiveView: View {
                         .padding(.horizontal, Theme.Spacing.lg)
                     }
 
-                    // Play/Stop button - pill style
-                    PlayButton(isPlaying: radio.isPlaying, isBuffering: radio.isBuffering) {
+                    // Play/Stop button - pill style (only reflects live stream state)
+                    PlayButton(
+                        isPlaying: radio.isPlaying && radio.isLiveStream,
+                        isBuffering: radio.isBuffering && radio.isLiveStream
+                    ) {
                         togglePlayback()
                     }
                     .padding(.top, Theme.Spacing.xl)
@@ -184,7 +187,13 @@ struct LiveView: View {
     }
 
     private func togglePlayback() {
-        radio.isPlaying ? radio.stop() : radio.play()
+        // Only stop if the live stream specifically is playing
+        // If SoundCloud is playing, calling play() will stop it and start live
+        if radio.isPlaying && radio.isLiveStream {
+            radio.stop()
+        } else {
+            radio.play()
+        }
     }
 
     private func updateNowPlayingMetadata() {

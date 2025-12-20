@@ -10,8 +10,8 @@ import Foundation
 struct ScheduleResponse: Decodable {
     let status: String
     let liveNow: LiveNow?          // optional, all fields optional
-    let nextUp: [ShowItem]
-    let schedule: [ShowItem]
+    let nextUp: [ShowItem]?        // optional, may be absent for last show of day
+    let schedule: [ShowItem]?      // optional, may be absent for last show of day
 }
 
 struct LiveNow: Decodable {
