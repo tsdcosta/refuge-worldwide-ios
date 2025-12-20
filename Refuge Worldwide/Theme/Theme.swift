@@ -13,72 +13,41 @@ struct Theme {
     // MARK: - Primary Colors
     static let background = Color.black
     static let foreground = Color.white
-    static let lightGrey = Color(hex: "#ececec")
 
     // MARK: - Brand Colors (Section Accents)
     static let orange = Color(hex: "#ff9300")
     static let red = Color(hex: "#ff0000")
 
     // MARK: - Semantic Colors
-    static let accent = orange                      // Primary accent (radio app)
     static let secondaryText = Color.gray
     static let cardBackground = Color(white: 0.08)  // Darker cards
-    static let pillBackground = Color.clear
-    static let pillBorder = Color.white
 
     // MARK: - Typography
     struct Typography {
         // Heading sizes (matching website rem values)
-        static let headingLarge: CGFloat = 45      // 2.8125rem
-        static let headingMedium: CGFloat = 38     // 2.4rem
         static let headingBase: CGFloat = 30       // 1.875rem
         static let headingSmall: CGFloat = 24      // 1.5rem
 
         // Body sizes
-        static let bodyLarge: CGFloat = 20         // 1.25rem (small in website)
         static let bodyBase: CGFloat = 17          // iOS default body
         static let bodySmall: CGFloat = 14         // 0.875rem
         static let caption: CGFloat = 12           // 0.75rem (xxs)
-
-        // Line height multipliers
-        static let headingLineHeight: CGFloat = 1.15
-        static let bodyLineHeight: CGFloat = 1.5
     }
 
     // MARK: - Spacing
     struct Spacing {
-        static let xxs: CGFloat = 2
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
         static let base: CGFloat = 16
         static let lg: CGFloat = 24
         static let xl: CGFloat = 32
-        static let xxl: CGFloat = 48
-    }
-
-    // MARK: - Corner Radius
-    struct Radius {
-        static let none: CGFloat = 0
-        static let small: CGFloat = 4
-        static let medium: CGFloat = 8
-        static let large: CGFloat = 12
-        static let full: CGFloat = 999  // Pill shape
     }
 
     // MARK: - Shadows (3D effect like website)
     struct Shadow {
         static let pillBlack = Color.black
-        static let pillWhite = Color.white
-        static let pillOrange = orange
         static let offset: CGFloat = 2
-    }
-
-    // MARK: - Animation
-    struct Animation {
-        static let fast: Double = 0.15
-        static let normal: Double = 0.25
-        static let slow: Double = 0.4
     }
 }
 

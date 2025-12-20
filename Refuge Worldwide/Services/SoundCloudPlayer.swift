@@ -7,7 +7,6 @@
 
 import Foundation
 import WebKit
-import AVFoundation
 import UIKit
 
 /// Plays SoundCloud tracks using the SoundCloud Widget API embedded in a hidden WKWebView

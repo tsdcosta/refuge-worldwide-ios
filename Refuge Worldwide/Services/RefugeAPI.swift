@@ -51,31 +51,6 @@ final class RefugeAPI {
     func fetchLiveNow() async throws -> ShowItem? {
         let url = URL(string: "https://refugeworldwide.com/api/schedule")!
         let (data, _) = try await URLSession.shared.data(from: url)
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer() // get the container
-            let dateStr = try container.decode(String.self)    // decode the string
-
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-            if let date = formatter.date(from: dateStr) {
-                return date
-            }
-
-            // fallback without fractional seconds
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateStr) {
-                return date
-            }
-
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date string: \(dateStr)"
-            )
-        }
-
         let response = try decoder.decode(ScheduleResponse.self, from: data)
 
         guard let liveNow = response.liveNow else {

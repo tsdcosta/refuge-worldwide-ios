@@ -207,17 +207,6 @@ struct DatePill: View {
     }
 }
 
-// MARK: - Genre Pill Component (legacy - keeping for compatibility)
-
-struct GenrePill: View {
-    let genre: String
-
-    var body: some View {
-        Text(genre)
-            .badge(small: true)
-    }
-}
-
 // MARK: - Date Formatter
 
 private let shortDateFormatter: DateFormatter = {
