@@ -305,6 +305,8 @@ final class RadioPlayer: ObservableObject {
     @Published var nowPlayingSubtitle = ""
     @Published var nowPlayingArtworkURL: URL?
 
+    private var cachedArtwork: MPMediaItemArtwork?
+
     private let engine = AudioEngine.shared
     private let soundCloudPlayer = SoundCloudPlayer.shared
     private var isSoundCloudPlaying = false
@@ -331,6 +333,14 @@ final class RadioPlayer: ObservableObject {
                 self.currentPlayingURL = self.soundCloudPlayer.currentURL
                 self.duration = self.soundCloudPlayer.duration
                 self.updateNowPlayingPlaybackState()
+
+                // Re-assert after delay to override SoundCloud widget's Now Playing info
+                if self.soundCloudPlayer.isPlaying {
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        await MainActor.run { self.updateNowPlayingPlaybackState() }
+                    }
+                }
             }
         }
 
@@ -340,6 +350,8 @@ final class RadioPlayer: ObservableObject {
                 guard let self = self, self.isSoundCloudPlaying else { return }
                 self.currentPosition = self.soundCloudPlayer.currentPosition
                 self.duration = self.soundCloudPlayer.duration
+                // Continuously re-assert Now Playing info to override SoundCloud widget
+                self.updateNowPlayingPlaybackState()
             }
         }
 
@@ -490,7 +502,7 @@ final class RadioPlayer: ObservableObject {
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.play() }
+            Task { @MainActor in self?.resume() }
             return .success
         }
 
@@ -527,7 +539,13 @@ final class RadioPlayer: ObservableObject {
     func updateNowPlayingInfo(title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil) {
         if let title = title { nowPlayingTitle = title }
         if let subtitle = subtitle { nowPlayingSubtitle = subtitle }
-        if let artworkURL = artworkURL { nowPlayingArtworkURL = artworkURL }
+        if let artworkURL = artworkURL {
+            // Clear cached artwork when URL changes to avoid showing stale artwork
+            if nowPlayingArtworkURL != artworkURL {
+                cachedArtwork = nil
+            }
+            nowPlayingArtworkURL = artworkURL
+        }
 
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: nowPlayingTitle,
@@ -549,10 +567,21 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func updateNowPlayingPlaybackState() {
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
-        info[MPMediaItemPropertyTitle] = nowPlayingTitle
-        info[MPNowPlayingInfoPropertyIsLiveStream] = isLiveStream
+        // Rebuild the dictionary from our cached values to prevent SoundCloud widget from overwriting
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: nowPlayingTitle,
+            MPNowPlayingInfoPropertyIsLiveStream: isLiveStream,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+        ]
+
+        if !nowPlayingSubtitle.isEmpty {
+            info[MPMediaItemPropertyArtist] = nowPlayingSubtitle
+        }
+
+        if let artwork = cachedArtwork {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -566,6 +595,7 @@ final class RadioPlayer: ObservableObject {
             Task { @MainActor in
                 let size = CGSize(width: 600, height: 600)
                 let artwork = MPMediaItemArtwork(boundsSize: size) { _ in squareImage }
+                self.cachedArtwork = artwork
                 var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                 info[MPMediaItemPropertyArtwork] = artwork
                 MPNowPlayingInfoCenter.default().nowPlayingInfo = info
