@@ -13,6 +13,7 @@ import Kingfisher
 struct ShowsView: View {
     let show: ShowItem?
     @Binding var navigationPath: NavigationPath
+    @Binding var isSearchMode: Bool
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
 
@@ -23,11 +24,12 @@ struct ShowsView: View {
                     ShowDetailContent(
                         show: show,
                         navigationPath: $navigationPath,
+                        isSearchMode: $isSearchMode,
                         onShowSelected: onShowSelected,
                         onArtistSelected: onArtistSelected
                     )
                 } else {
-                    EmptyShowsView()
+                    ShowSearchView(onShowSelected: onShowSelected)
                 }
             }
             .navigationDestination(for: ScheduleDestination.self) { destination in
@@ -36,6 +38,7 @@ struct ShowsView: View {
                     ShowDetailContent(
                         show: show,
                         navigationPath: $navigationPath,
+                        isSearchMode: .constant(false),
                         onShowSelected: onShowSelected,
                         onArtistSelected: onArtistSelected
                     )
@@ -47,26 +50,228 @@ struct ShowsView: View {
     }
 }
 
-// MARK: - Empty State
+// MARK: - Show Search View
 
-struct EmptyShowsView: View {
+struct ShowSearchView: View {
+    var onShowSelected: ((ShowItem) -> Void)?
+
+    @State private var searchText = ""
+    @State private var searchResults: [ShowItem] = []
+    @State private var isSearching = false
+    @State private var searchTask: Task<Void, Never>?
+    @FocusState private var isSearchFocused: Bool
+
+    private var hasTyped: Bool {
+        !searchText.isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: Theme.Spacing.lg) {
-            Image(systemName: "play.circle")
-                .font(.system(size: 64))
-                .foregroundColor(Theme.secondaryText)
+        GeometryReader { geometry in
+            ZStack {
+                Theme.background
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        isSearchFocused = false
+                    }
 
-            Text("No Show Selected")
-                .font(.serifHeading(size: Theme.Typography.headingSmall))
-                .foregroundColor(Theme.foreground)
+                VStack(spacing: 0) {
+                    if hasTyped {
+                        Spacer()
+                            .frame(height: geometry.safeAreaInsets.top + Theme.Spacing.xl)
+                    } else {
+                        Spacer()
+                    }
 
-            Text("Select a show from the Schedule to view details and listen to past recordings.")
-                .font(.lightBody(size: Theme.Typography.bodySmall))
-                .foregroundColor(Theme.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Theme.Spacing.xl)
+                    // Search bar - white horizontal line
+                    VStack(spacing: 0) {
+                        HStack {
+                            TextField("", text: $searchText, prompt: Text("Search shows").foregroundColor(Theme.secondaryText))
+                                .font(.lightBody(size: Theme.Typography.bodyBase))
+                                .foregroundColor(Theme.foreground)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .submitLabel(.search)
+                                .focused($isSearchFocused)
+
+                            if isSearching {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
+                                    .scaleEffect(0.8)
+                            } else if !searchText.isEmpty {
+                                Button {
+                                    searchText = ""
+                                    searchResults = []
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(Theme.secondaryText)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, Theme.Spacing.base)
+                        .padding(.bottom, Theme.Spacing.sm)
+
+                        // White horizontal line
+                        Rectangle()
+                            .fill(Theme.foreground)
+                            .frame(height: 1)
+                    }
+                    .padding(.horizontal, Theme.Spacing.lg)
+
+                    if hasTyped {
+                        // Search results
+                        if isSearching && searchResults.isEmpty {
+                            Spacer()
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
+                            Spacer()
+                        } else if searchResults.isEmpty && !searchText.isEmpty && !isSearching {
+                            Spacer()
+                            Text("No shows found")
+                                .font(.lightBody(size: Theme.Typography.bodyBase))
+                                .foregroundColor(Theme.secondaryText)
+                            Spacer()
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 0) {
+                                    ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, show in
+                                        Button {
+                                            onShowSelected?(show)
+                                        } label: {
+                                            SearchResultRow(show: show)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+
+                                        if index < searchResults.count - 1 {
+                                            Rectangle()
+                                                .fill(Color.white.opacity(0.1))
+                                                .frame(height: 1)
+                                                .padding(.horizontal, Theme.Spacing.lg)
+                                        }
+                                    }
+                                }
+                                .padding(.top, Theme.Spacing.lg)
+                            }
+                        }
+                    } else {
+                        Spacer()
+                    }
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.3), value: hasTyped)
+        .onChange(of: searchText) { _, newValue in
+            searchTask?.cancel()
+
+            if newValue.isEmpty {
+                searchResults = []
+                isSearching = false
+                return
+            }
+
+            isSearching = true
+
+            searchTask = Task {
+                do {
+                    try await Task.sleep(nanoseconds: 300_000_000)
+                } catch {
+                    return
+                }
+
+                guard !Task.isCancelled else { return }
+
+                await performSearch(query: newValue)
+            }
+        }
+    }
+
+    private func performSearch(query: String) async {
+        do {
+            let results = try await RefugeAPI.shared.searchShows(query: query)
+            if !Task.isCancelled && searchText == query {
+                searchResults = results
+            }
+        } catch {
+            if !Task.isCancelled {
+                print("Search failed:", error)
+                searchResults = []
+            }
+        }
+        if !Task.isCancelled {
+            isSearching = false
+        }
+    }
+}
+
+// MARK: - Search Result Row
+
+struct SearchResultRow: View {
+    let show: ShowItem
+    private let rowHeight: CGFloat = 80
+
+    private var formattedDate: String? {
+        guard let date = show.date else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter.string(from: date)
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            // Cover image
+            if let url = show.coverImage?.url {
+                KFImage(url)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: rowHeight, height: rowHeight)
+                    .clipped()
+            } else {
+                Theme.cardBackground
+                    .frame(width: rowHeight, height: rowHeight)
+            }
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(show.title.replacingOccurrences(of: #" - .*$"#, with: "", options: .regularExpression))
+                    .font(.mediumBody(size: Theme.Typography.bodySmall))
+                    .foregroundColor(Theme.foreground)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                if let date = formattedDate {
+                    Text(date)
+                        .font(.lightBody(size: Theme.Typography.caption))
+                        .foregroundColor(Theme.secondaryText)
+                }
+
+                // Genre badges
+                if let genres = show.genres, !genres.isEmpty {
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ForEach(genres.prefix(2), id: \.self) { genre in
+                            Text(genre)
+                                .font(.system(size: 9, weight: .medium))
+                                .textCase(.uppercase)
+                                .tracking(0.3)
+                                .foregroundColor(Theme.foreground.opacity(0.7))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
+                                )
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Theme.secondaryText)
+                .padding(.trailing, Theme.Spacing.md)
+        }
+        .padding(.leading, Theme.Spacing.lg)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(minHeight: rowHeight)
         .background(Theme.background)
     }
 }
@@ -76,6 +281,7 @@ struct EmptyShowsView: View {
 struct ShowDetailContent: View {
     let show: ShowItem
     @Binding var navigationPath: NavigationPath
+    @Binding var isSearchMode: Bool
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
 
@@ -117,19 +323,20 @@ struct ShowDetailContent: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Cover image - full width, square
-                if let url = show.coverImage?.url {
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay(
-                            KFImage(url)
-                                .resizable()
-                                .scaledToFill()
-                        )
-                        .clipped()
-                }
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Cover image - full width, square
+                    if let url = show.coverImage?.url {
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                            .overlay(
+                                KFImage(url)
+                                    .resizable()
+                                    .scaledToFill()
+                            )
+                            .clipped()
+                    }
 
                 VStack(spacing: Theme.Spacing.base) {
                     // Date - like "20 Dec 2025"
@@ -263,7 +470,42 @@ struct ShowDetailContent: View {
             }
             .padding(.bottom, Theme.Spacing.xl)
         }
+
+            // Search overlay (placed before pill so pill stays on top)
+            if isSearchMode {
+                ShowSearchOverlay(
+                    onShowSelected: { selectedShow in
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            isSearchMode = false
+                        }
+                        onShowSelected?(selectedShow)
+                    },
+                    onDismiss: {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            isSearchMode = false
+                        }
+                    }
+                )
+                .transition(.opacity)
+            }
+
+            // Search icon pill - top right, floating (on top of everything)
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isSearchMode.toggle()
+                }
+            } label: {
+                SearchPill(isActive: isSearchMode)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.trailing, Theme.Spacing.base)
+            .padding(.top, Theme.Spacing.base)
+        }
         .background(Theme.background)
+        .onChange(of: show.slug) { _, _ in
+            // Reset search mode when navigating to a different show
+            isSearchMode = false
+        }
         .task(id: show.slug) {
             await loadShowIfNeeded()
         }
@@ -413,6 +655,173 @@ struct SeekBarView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, secs)
         } else {
             return String(format: "%d:%02d", minutes, secs)
+        }
+    }
+}
+
+// MARK: - Search Pill (similar style to LetterPill)
+
+struct SearchPill: View {
+    var isActive: Bool = false
+
+    var body: some View {
+        Image(systemName: isActive ? "xmark" : "magnifyingglass")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundColor(.black)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
+            .background(
+                Capsule()
+                    .fill(Color.white)
+                    .shadow(color: .black, radius: 0, x: 0, y: 2)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.black, lineWidth: 1.5)
+            )
+    }
+}
+
+// MARK: - Search Overlay (appears on top of show detail)
+
+struct ShowSearchOverlay: View {
+    var onShowSelected: ((ShowItem) -> Void)?
+    var onDismiss: (() -> Void)?
+
+    @State private var searchText = ""
+    @State private var searchResults: [ShowItem] = []
+    @State private var isSearching = false
+    @State private var searchTask: Task<Void, Never>?
+    @FocusState private var isSearchFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Top area with search bar
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: Theme.Spacing.xl + 44) // Space for pill
+
+                // Search bar - white horizontal line
+                VStack(spacing: 0) {
+                    HStack {
+                        TextField("", text: $searchText, prompt: Text("Search shows").foregroundColor(Theme.secondaryText))
+                            .font(.lightBody(size: Theme.Typography.bodyBase))
+                            .foregroundColor(Theme.foreground)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .submitLabel(.search)
+                            .focused($isSearchFocused)
+
+                        if isSearching {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
+                                .scaleEffect(0.8)
+                        } else if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                                searchResults = []
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(Theme.secondaryText)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.base)
+                    .padding(.bottom, Theme.Spacing.sm)
+
+                    // White horizontal line
+                    Rectangle()
+                        .fill(Theme.foreground)
+                        .frame(height: 1)
+                }
+                .padding(.horizontal, Theme.Spacing.lg)
+            }
+
+            // Search results
+            if isSearching && searchResults.isEmpty {
+                Spacer()
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
+                Spacer()
+            } else if searchResults.isEmpty && !searchText.isEmpty && !isSearching {
+                Spacer()
+                Text("No shows found")
+                    .font(.lightBody(size: Theme.Typography.bodyBase))
+                    .foregroundColor(Theme.secondaryText)
+                Spacer()
+            } else if !searchResults.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, show in
+                            Button {
+                                onShowSelected?(show)
+                            } label: {
+                                SearchResultRow(show: show)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            if index < searchResults.count - 1 {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.1))
+                                    .frame(height: 1)
+                                    .padding(.horizontal, Theme.Spacing.lg)
+                            }
+                        }
+                    }
+                    .padding(.top, Theme.Spacing.lg)
+                }
+            } else {
+                Spacer()
+                Text("Type to search for shows")
+                    .font(.lightBody(size: Theme.Typography.bodyBase))
+                    .foregroundColor(Theme.secondaryText)
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.background)
+        .onAppear {
+            isSearchFocused = true
+        }
+        .onChange(of: searchText) { _, newValue in
+            searchTask?.cancel()
+
+            if newValue.isEmpty {
+                searchResults = []
+                isSearching = false
+                return
+            }
+
+            isSearching = true
+
+            searchTask = Task {
+                do {
+                    try await Task.sleep(nanoseconds: 300_000_000)
+                } catch {
+                    return
+                }
+
+                guard !Task.isCancelled else { return }
+
+                await performSearch(query: newValue)
+            }
+        }
+    }
+
+    private func performSearch(query: String) async {
+        do {
+            let results = try await RefugeAPI.shared.searchShows(query: query)
+            if !Task.isCancelled && searchText == query {
+                searchResults = results
+            }
+        } catch {
+            if !Task.isCancelled {
+                print("Search failed:", error)
+                searchResults = []
+            }
+        }
+        if !Task.isCancelled {
+            isSearching = false
         }
     }
 }

@@ -16,6 +16,7 @@ struct LiveView: View {
     @State private var liveDescription: [String] = []
     @State private var liveGenres: [String] = []
     @State private var navigationPath = NavigationPath()
+    @State private var refreshTimer: Timer?
 
     private var timeString: String {
         guard let show = liveShow else { return "" }
@@ -131,6 +132,10 @@ struct LiveView: View {
             .background(Theme.background)
             .task {
                 await fetchLiveShow()
+                startRefreshTimer()
+            }
+            .onDisappear {
+                stopRefreshTimer()
             }
         }
     }
@@ -204,6 +209,20 @@ struct LiveView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return parts
+    }
+
+    private func startRefreshTimer() {
+        stopRefreshTimer()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+            Task {
+                await fetchLiveShow()
+            }
+        }
+    }
+
+    private func stopRefreshTimer() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 }
 

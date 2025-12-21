@@ -56,7 +56,7 @@ struct ScheduleView: View {
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
                 case .showDetail(let show):
-                    ShowDetailContent(show: show, navigationPath: $navigationPath, onShowSelected: onShowSelected)
+                    ShowDetailContent(show: show, navigationPath: $navigationPath, isSearchMode: .constant(false), onShowSelected: onShowSelected)
                 case .artistDetail(let slug, let name):
                     ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 }

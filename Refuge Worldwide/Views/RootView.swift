@@ -21,11 +21,13 @@ struct RootView: View {
     @State private var artistsNavigationPath = NavigationPath()
     @State private var showsNavigationPath = NavigationPath()
     @State private var selectedShow: ShowItem?
+    @State private var showsSearchMode = false
     @ObservedObject private var radio = RadioPlayer.shared
 
     private func handleShowSelected(_ show: ShowItem) {
         selectedShow = show
         showsNavigationPath = NavigationPath()
+        showsSearchMode = false
         selectedTab = .shows
     }
 
@@ -68,6 +70,7 @@ struct RootView: View {
             ShowsView(
                 show: selectedShow,
                 navigationPath: $showsNavigationPath,
+                isSearchMode: $showsSearchMode,
                 onShowSelected: handleShowSelected,
                 onArtistSelected: handleArtistSelected
             )
@@ -96,14 +99,20 @@ struct RootView: View {
                     } else if newTab == .artists {
                         artistsNavigationPath = NavigationPath()
                     } else if newTab == .shows {
-                        showsNavigationPath = NavigationPath()
-                        // Navigate to currently playing show if one exists
-                        if let playingShow = radio.currentPlayingShow {
-                            selectedShow = playingShow
+                        // If in search mode, dismiss it; otherwise show currently playing
+                        if showsSearchMode {
+                            showsSearchMode = false
+                        } else {
+                            showsNavigationPath = NavigationPath()
+                            // Navigate to currently playing show if one exists
+                            if let playingShow = radio.currentPlayingShow {
+                                selectedShow = playingShow
+                            }
                         }
                     }
                 } else if newTab == .shows {
-                    // When switching to Shows tab, navigate to currently playing show if exists
+                    // When switching to Shows tab, dismiss search and show currently playing
+                    showsSearchMode = false
                     if let playingShow = radio.currentPlayingShow {
                         selectedShow = playingShow
                         showsNavigationPath = NavigationPath()

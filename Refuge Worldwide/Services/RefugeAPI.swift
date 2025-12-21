@@ -120,6 +120,62 @@ final class RefugeAPI {
         }
     }
 
+    func searchShows(query: String) async throws -> [ShowItem] {
+        guard !query.isEmpty else { return [] }
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let urlString = "https://refugeworldwide.com/api/search?query=\(encoded)"
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let showsArray = json["shows"] as? [[String: Any]] else {
+            return []
+        }
+
+        return showsArray.compactMap { item -> ShowItem? in
+            guard let id = item["id"] as? String,
+                  let title = item["title"] as? String,
+                  let slug = item["slug"] as? String else {
+                return nil
+            }
+
+            var coverImage: ShowItem.CoverImage? = nil
+            if let urlStr = item["coverImage"] as? String {
+                // API returns protocol-relative URLs like //images.ctfassets.net/...
+                let fullUrlStr = urlStr.hasPrefix("//") ? "https:\(urlStr)" : urlStr
+                if let url = URL(string: fullUrlStr) {
+                    coverImage = ShowItem.CoverImage(url: url)
+                }
+            }
+
+            var date: Date? = nil
+            if let dateStr = item["date"] as? String {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                date = formatter.date(from: dateStr)
+                if date == nil {
+                    formatter.formatOptions = [.withInternetDateTime]
+                    date = formatter.date(from: dateStr)
+                }
+            }
+
+            let genres = item["genres"] as? [String]
+
+            return ShowItem(
+                title: title,
+                slug: slug,
+                date: date,
+                dateEnd: nil,
+                coverImage: coverImage,
+                description: nil,
+                genres: genres,
+                artistsCollection: nil
+            )
+        }
+    }
+
     func fetchArtists(isResident: Bool, limit: Int, skip: Int) async throws -> [ArtistListItem] {
         let urlString = "https://refugeworldwide.com/api/artists?role=\(isResident)&limit=\(limit)&skip=\(skip)"
         guard let url = URL(string: urlString) else {

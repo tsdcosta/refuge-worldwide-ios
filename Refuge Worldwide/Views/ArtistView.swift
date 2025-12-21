@@ -2,7 +2,7 @@
 //  ArtistView.swift
 //  Refuge Worldwide
 //
-//  Created by Claude on 12/21/25.
+//  Created by Tiago on 12/21/25.
 //
 
 import SwiftUI
@@ -94,34 +94,37 @@ struct ArtistsView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
-                // Search bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(Color.black.opacity(0.5))
-                    TextField("Search artists", text: $searchText)
-                        .font(.lightBody(size: Theme.Typography.bodyBase))
-                        .foregroundColor(.black)
-                        .autocorrectionDisabled()
-                        .submitLabel(.search)
-                    if isSearching {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Color.black.opacity(0.5)))
-                            .scaleEffect(0.8)
-                    } else if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                            searchResults = []
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(Color.black.opacity(0.5))
+                // Search bar - horizontal line style
+                VStack(spacing: 0) {
+                    HStack {
+                        TextField("", text: $searchText, prompt: Text("Search artists").foregroundColor(Color.black.opacity(0.5)))
+                            .font(.lightBody(size: Theme.Typography.bodyBase))
+                            .foregroundColor(.black)
+                            .autocorrectionDisabled()
+                            .submitLabel(.search)
+                        if isSearching {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color.black.opacity(0.5)))
+                                .scaleEffect(0.8)
+                        } else if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                                searchResults = []
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(Color.black.opacity(0.5))
+                            }
                         }
                     }
+                    .padding(.horizontal, Theme.Spacing.base)
+                    .padding(.bottom, Theme.Spacing.sm)
+
+                    // Black horizontal line
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(height: 1)
                 }
-                .padding(.horizontal, Theme.Spacing.base)
-                .padding(.vertical, Theme.Spacing.md)
-                .background(Color.white.opacity(0.9))
-                .cornerRadius(8)
-                .padding(.horizontal, Theme.Spacing.base)
+                .padding(.horizontal, Theme.Spacing.lg)
                 .padding(.top, Theme.Spacing.base)
                 .padding(.bottom, Theme.Spacing.md)
 
@@ -210,7 +213,7 @@ struct ArtistsView: View {
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
                 case .showDetail(let show):
-                    ShowDetailContent(show: show, navigationPath: $navigationPath, onShowSelected: onShowSelected)
+                    ShowDetailContent(show: show, navigationPath: $navigationPath, isSearchMode: .constant(false), onShowSelected: onShowSelected)
                 case .artistDetail(let slug, let name):
                     ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 }
