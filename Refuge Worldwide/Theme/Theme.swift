@@ -17,6 +17,7 @@ struct Theme {
     // MARK: - Brand Colors (Section Accents)
     static let orange = Color(hex: "#ff9300")
     static let red = Color(hex: "#ff0000")
+    static let purple = Color(hex: "#a346ff")
 
     // MARK: - Semantic Colors
     static let secondaryText = Color.gray

@@ -170,6 +170,16 @@ struct ShowItem: Identifiable, Decodable, Hashable {
     }
 }
 
+// MARK: - Artist List Item (for artist listing)
+
+struct ArtistListItem: Identifiable {
+    let id: String
+    let name: String
+    let slug: String
+    let isResident: Bool
+    let photoURL: URL?
+}
+
 // MARK: - Artist Detail Response
 
 struct ArtistResponse: Decodable {

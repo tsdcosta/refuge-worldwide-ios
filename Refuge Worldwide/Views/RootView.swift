@@ -11,23 +11,36 @@ import UIKit
 enum Tab: Hashable {
     case live
     case schedule
+    case artists
     case shows
 }
 
 struct RootView: View {
     @State private var selectedTab: Tab = .live
     @State private var scheduleNavigationPath = NavigationPath()
+    @State private var artistsNavigationPath = NavigationPath()
     @State private var showsNavigationPath = NavigationPath()
     @State private var selectedShow: ShowItem?
     @ObservedObject private var radio = RadioPlayer.shared
 
+    private func handleShowSelected(_ show: ShowItem) {
+        selectedShow = show
+        showsNavigationPath = NavigationPath()
+        selectedTab = .shows
+    }
+
+    private func handleArtistSelected(slug: String, name: String) {
+        artistsNavigationPath = NavigationPath()
+        artistsNavigationPath.append(ScheduleDestination.artistDetail(slug: slug, name: name))
+        selectedTab = .artists
+    }
+
     var body: some View {
         TabView(selection: tabSelection) {
-            LiveView(onShowSelected: { show in
-                selectedShow = show
-                showsNavigationPath = NavigationPath()
-                selectedTab = .shows
-            })
+            LiveView(
+                onShowSelected: handleShowSelected,
+                onArtistSelected: handleArtistSelected
+            )
                 .tabItem {
                     Label("Live", systemImage: "dot.radiowaves.left.and.right")
                 }
@@ -35,24 +48,28 @@ struct RootView: View {
 
             ScheduleView(
                 navigationPath: $scheduleNavigationPath,
-                onShowSelected: { show in
-                    selectedShow = show
-                    showsNavigationPath = NavigationPath()
-                    selectedTab = .shows
-                }
+                onShowSelected: handleShowSelected,
+                onArtistSelected: handleArtistSelected
             )
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
                 .tag(Tab.schedule)
 
+            ArtistsView(
+                navigationPath: $artistsNavigationPath,
+                onShowSelected: handleShowSelected
+            )
+                .tabItem {
+                    Label("Artists", systemImage: "person.2")
+                }
+                .tag(Tab.artists)
+
             ShowsView(
                 show: selectedShow,
                 navigationPath: $showsNavigationPath,
-                onShowSelected: { show in
-                    selectedShow = show
-                    showsNavigationPath = NavigationPath()
-                }
+                onShowSelected: handleShowSelected,
+                onArtistSelected: handleArtistSelected
             )
                 .tabItem {
                     Label("Shows", systemImage: "play.circle")
@@ -76,6 +93,8 @@ struct RootView: View {
                 if newTab == selectedTab {
                     if newTab == .schedule {
                         scheduleNavigationPath = NavigationPath()
+                    } else if newTab == .artists {
+                        artistsNavigationPath = NavigationPath()
                     } else if newTab == .shows {
                         showsNavigationPath = NavigationPath()
                         // Navigate to currently playing show if one exists

@@ -84,6 +84,74 @@ final class RefugeAPI {
         return try JSONDecoder().decode(ArtistResponse.self, from: data)
     }
 
+    func searchArtists(query: String) async throws -> [ArtistListItem] {
+        guard !query.isEmpty else { return [] }
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let urlString = "https://refugeworldwide.com/api/search?query=\(encoded)"
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let artistsArray = json["artists"] as? [[String: Any]] else {
+            return []
+        }
+
+        return artistsArray.compactMap { item -> ArtistListItem? in
+            guard let fields = item["fields"] as? [String: Any],
+                  let sys = item["sys"] as? [String: Any],
+                  let id = sys["id"] as? String,
+                  let name = fields["name"] as? String,
+                  let slug = fields["slug"] as? String else {
+                return nil
+            }
+
+            var photoURL: URL? = nil
+            if let photo = fields["photo"] as? [String: Any],
+               let photoFields = photo["fields"] as? [String: Any],
+               let file = photoFields["file"] as? [String: Any],
+               let urlStr = file["url"] as? String {
+                photoURL = URL(string: "https:\(urlStr)")
+            }
+
+            // Search doesn't return isResident, default to false
+            return ArtistListItem(id: id, name: name, slug: slug, isResident: false, photoURL: photoURL)
+        }
+    }
+
+    func fetchArtists(isResident: Bool, limit: Int, skip: Int) async throws -> [ArtistListItem] {
+        let urlString = "https://refugeworldwide.com/api/artists?role=\(isResident)&limit=\(limit)&skip=\(skip)"
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+
+        // Parse the JSON array manually since the structure is nested
+        guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        return jsonArray.compactMap { item -> ArtistListItem? in
+            guard let sys = item["sys"] as? [String: Any],
+                  let id = sys["id"] as? String,
+                  let name = item["name"] as? String,
+                  let slug = item["slug"] as? String else {
+                return nil
+            }
+
+            let isResident = item["isResident"] as? Bool ?? false
+
+            var photoURL: URL? = nil
+            if let photo = item["photo"] as? [String: Any],
+               let urlStr = photo["url"] as? String {
+                photoURL = URL(string: "\(urlStr)")
+            }
+
+            return ArtistListItem(id: id, name: name, slug: slug, isResident: isResident, photoURL: photoURL)
+        }
+    }
+
     // Fetch detailed show information from the website API (/api/shows/<slug>)
     func fetchShowDetail(slug: String) async throws -> ShowDetail {
         let encoded = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LiveView: View {
     var onShowSelected: ((ShowItem) -> Void)?
+    var onArtistSelected: ((String, String) -> Void)?
 
     @ObservedObject private var radio = RadioPlayer.shared
     @State private var liveShow: ShowItem?
@@ -95,7 +96,7 @@ struct LiveView: View {
                             
                             // Artists - tappable links
                             if let artists = show.artistsCollection?.items, !artists.isEmpty {
-                                ArtistLinksView(artists: artists, navigationPath: $navigationPath)
+                                ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
                             }
 
                             // Description
@@ -130,14 +131,6 @@ struct LiveView: View {
             .background(Theme.background)
             .task {
                 await fetchLiveShow()
-            }
-            .navigationDestination(for: ScheduleDestination.self) { destination in
-                switch destination {
-                case .showDetail(let show):
-                    ShowDetailContent(show: show, navigationPath: $navigationPath, onShowSelected: onShowSelected)
-                case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
-                }
             }
         }
     }

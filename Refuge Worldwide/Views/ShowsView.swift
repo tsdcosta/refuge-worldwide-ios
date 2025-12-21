@@ -14,6 +14,7 @@ struct ShowsView: View {
     let show: ShowItem?
     @Binding var navigationPath: NavigationPath
     var onShowSelected: ((ShowItem) -> Void)?
+    var onArtistSelected: ((String, String) -> Void)?
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -22,7 +23,8 @@ struct ShowsView: View {
                     ShowDetailContent(
                         show: show,
                         navigationPath: $navigationPath,
-                        onShowSelected: onShowSelected
+                        onShowSelected: onShowSelected,
+                        onArtistSelected: onArtistSelected
                     )
                 } else {
                     EmptyShowsView()
@@ -34,10 +36,11 @@ struct ShowsView: View {
                     ShowDetailContent(
                         show: show,
                         navigationPath: $navigationPath,
-                        onShowSelected: onShowSelected
+                        onShowSelected: onShowSelected,
+                        onArtistSelected: onArtistSelected
                     )
                 case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath)
+                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
                 }
             }
         }
@@ -74,6 +77,7 @@ struct ShowDetailContent: View {
     let show: ShowItem
     @Binding var navigationPath: NavigationPath
     var onShowSelected: ((ShowItem) -> Void)?
+    var onArtistSelected: ((String, String) -> Void)?
 
     @State private var description: [String] = []
     @State private var genres: [String] = []
@@ -155,7 +159,7 @@ struct ShowDetailContent: View {
 
                     // Artists - tappable links
                     if !artists.isEmpty {
-                        ArtistLinksView(artists: artists, navigationPath: $navigationPath)
+                        ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
                     }
                     
                     // Play button - prominent, centered
@@ -237,7 +241,7 @@ struct ShowDetailContent: View {
                                 Button {
                                     onShowSelected?(ShowItem(from: relatedShow))
                                 } label: {
-                                    RelatedShowCard(show: relatedShow, navigationPath: $navigationPath)
+                                    RelatedShowCard(show: relatedShow, onArtistSelected: onArtistSelected)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 .frame(maxWidth: .infinity, alignment: .leading)
