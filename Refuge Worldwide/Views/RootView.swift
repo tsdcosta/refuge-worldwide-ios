@@ -22,6 +22,8 @@ struct RootView: View {
     @State private var showsNavigationPath = NavigationPath()
     @State private var selectedShow: ShowItem?
     @State private var showsSearchMode = false
+    @State private var showsSearchText = ""
+    @State private var showsSearchResults: [ShowItem] = []
     @ObservedObject private var radio = RadioPlayer.shared
 
     private func handleShowSelected(_ show: ShowItem) {
@@ -71,6 +73,8 @@ struct RootView: View {
                 show: selectedShow,
                 navigationPath: $showsNavigationPath,
                 isSearchMode: $showsSearchMode,
+                searchText: $showsSearchText,
+                searchResults: $showsSearchResults,
                 onShowSelected: handleShowSelected,
                 onArtistSelected: handleArtistSelected
             )

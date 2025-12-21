@@ -308,14 +308,14 @@ final class RadioPlayer: ObservableObject {
     private var cachedArtwork: MPMediaItemArtwork?
 
     private let engine = AudioEngine.shared
-    private let soundCloudPlayer = SoundCloudPlayer.shared
-    private var isSoundCloudPlaying = false
+    private let embedPlayer = EmbedPlayer.shared
+    private var isEmbedPlaying = false
 
     private init() {
         // Listen to engine state changes
         engine.onStateChanged = { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self = self, !self.isSoundCloudPlaying else { return }
+                guard let self = self, !self.isEmbedPlaying else { return }
                 self.isPlaying = self.engine.isPlaying
                 self.isBuffering = self.engine.isBuffering
                 self.isLiveStream = self.engine.isLiveStream
@@ -324,18 +324,18 @@ final class RadioPlayer: ObservableObject {
             }
         }
 
-        // Listen to SoundCloud player state changes
-        soundCloudPlayer.onStateChanged = { [weak self] in
+        // Listen to embed player state changes (SoundCloud/Mixcloud)
+        embedPlayer.onStateChanged = { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self = self, self.isSoundCloudPlaying else { return }
-                self.isPlaying = self.soundCloudPlayer.isPlaying
-                self.isBuffering = self.soundCloudPlayer.isBuffering
-                self.currentPlayingURL = self.soundCloudPlayer.currentURL
-                self.duration = self.soundCloudPlayer.duration
+                guard let self = self, self.isEmbedPlaying else { return }
+                self.isPlaying = self.embedPlayer.isPlaying
+                self.isBuffering = self.embedPlayer.isBuffering
+                self.currentPlayingURL = self.embedPlayer.currentURL
+                self.duration = self.embedPlayer.duration
                 self.updateNowPlayingPlaybackState()
 
-                // Re-assert after delay to override SoundCloud widget's Now Playing info
-                if self.soundCloudPlayer.isPlaying {
+                // Re-assert after delay to override widget's Now Playing info
+                if self.embedPlayer.isPlaying {
                     Task {
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                         await MainActor.run { self.updateNowPlayingPlaybackState() }
@@ -344,13 +344,13 @@ final class RadioPlayer: ObservableObject {
             }
         }
 
-        // Listen to SoundCloud player progress changes
-        soundCloudPlayer.onProgressChanged = { [weak self] in
+        // Listen to embed player progress changes
+        embedPlayer.onProgressChanged = { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self = self, self.isSoundCloudPlaying else { return }
-                self.currentPosition = self.soundCloudPlayer.currentPosition
-                self.duration = self.soundCloudPlayer.duration
-                // Continuously re-assert Now Playing info to override SoundCloud widget
+                guard let self = self, self.isEmbedPlaying else { return }
+                self.currentPosition = self.embedPlayer.currentPosition
+                self.duration = self.embedPlayer.duration
+                // Continuously re-assert Now Playing info to override widget
                 self.updateNowPlayingPlaybackState()
             }
         }
@@ -362,10 +362,10 @@ final class RadioPlayer: ObservableObject {
     // MARK: - Playback Control
 
     func play() {
-        // Stop SoundCloud if playing
-        if isSoundCloudPlaying {
-            soundCloudPlayer.stop()
-            isSoundCloudPlaying = false
+        // Stop embed player if playing
+        if isEmbedPlaying {
+            embedPlayer.stop()
+            isEmbedPlaying = false
         }
 
         engine.play()
@@ -387,18 +387,18 @@ final class RadioPlayer: ObservableObject {
             nowPlayingArtworkURL = artworkURL
         }
 
-        // Check if this is a SoundCloud URL
-        if SoundCloudPlayer.isSoundCloudURL(url) {
+        // Check if this is an embeddable URL (SoundCloud or Mixcloud)
+        if EmbedPlayer.isEmbeddableURL(url) {
             // Stop the audio engine if playing
             engine.stop()
-            isSoundCloudPlaying = true
+            isEmbedPlaying = true
             currentPlayingShow = show
-            soundCloudPlayer.play(url: url)
+            embedPlayer.play(url: url)
         } else {
-            // Stop SoundCloud if playing
-            if isSoundCloudPlaying {
-                soundCloudPlayer.stop()
-                isSoundCloudPlaying = false
+            // Stop embed player if playing
+            if isEmbedPlaying {
+                embedPlayer.stop()
+                isEmbedPlaying = false
             }
             currentPlayingShow = nil
             engine.playURL(url)
@@ -413,8 +413,8 @@ final class RadioPlayer: ObservableObject {
     }
 
     func pause() {
-        if isSoundCloudPlaying {
-            soundCloudPlayer.pause()
+        if isEmbedPlaying {
+            embedPlayer.pause()
             isPlaying = false
             isBuffering = false
             updateNowPlayingPlaybackState()
@@ -424,8 +424,8 @@ final class RadioPlayer: ObservableObject {
     }
 
     func resume() {
-        if isSoundCloudPlaying && currentPlayingURL != nil {
-            soundCloudPlayer.resume()
+        if isEmbedPlaying && currentPlayingURL != nil {
+            embedPlayer.resume()
             isPlaying = true
             isBuffering = true
             updateNowPlayingPlaybackState()
@@ -435,9 +435,9 @@ final class RadioPlayer: ObservableObject {
     }
 
     func stop() {
-        if isSoundCloudPlaying {
-            soundCloudPlayer.stop()
-            isSoundCloudPlaying = false
+        if isEmbedPlaying {
+            embedPlayer.stop()
+            isEmbedPlaying = false
         } else {
             engine.stop()
         }
@@ -452,14 +452,14 @@ final class RadioPlayer: ObservableObject {
     }
 
     func seekTo(position: Double) {
-        guard isSoundCloudPlaying else { return }
-        soundCloudPlayer.seekTo(position: position)
+        guard isEmbedPlaying else { return }
+        embedPlayer.seekTo(position: position)
         currentPosition = position
     }
 
     func toggle() {
-        if isSoundCloudPlaying {
-            if soundCloudPlayer.isPlaying {
+        if isEmbedPlaying {
+            if embedPlayer.isPlaying {
                 pause()
             } else {
                 resume()
@@ -483,12 +483,12 @@ final class RadioPlayer: ObservableObject {
 
     /// Check if a specific URL is currently paused
     func isPausedURL(_ url: URL) -> Bool {
-        return !isPlaying && isSoundCloudPlaying && currentPlayingURL == url
+        return !isPlaying && isEmbedPlaying && currentPlayingURL == url
     }
 
-    /// Check if seeking is supported for current playback (SoundCloud only)
+    /// Check if seeking is supported for current playback (embeddable streams only)
     var canSeek: Bool {
-        return isSoundCloudPlaying && duration > 0
+        return isEmbedPlaying && duration > 0
     }
 
     // MARK: - Now Playing Info

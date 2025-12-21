@@ -176,6 +176,7 @@ final class RefugeAPI {
         }
     }
 
+
     func fetchArtists(isResident: Bool, limit: Int, skip: Int) async throws -> [ArtistListItem] {
         let urlString = "https://refugeworldwide.com/api/artists?role=\(isResident)&limit=\(limit)&skip=\(skip)"
         guard let url = URL(string: urlString) else {

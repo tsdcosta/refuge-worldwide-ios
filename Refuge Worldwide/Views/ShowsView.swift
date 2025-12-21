@@ -14,6 +14,8 @@ struct ShowsView: View {
     let show: ShowItem?
     @Binding var navigationPath: NavigationPath
     @Binding var isSearchMode: Bool
+    @Binding var searchText: String
+    @Binding var searchResults: [ShowItem]
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
 
@@ -25,11 +27,17 @@ struct ShowsView: View {
                         show: show,
                         navigationPath: $navigationPath,
                         isSearchMode: $isSearchMode,
+                        searchText: $searchText,
+                        searchResults: $searchResults,
                         onShowSelected: onShowSelected,
                         onArtistSelected: onArtistSelected
                     )
                 } else {
-                    ShowSearchView(onShowSelected: onShowSelected)
+                    ShowSearchView(
+                        searchText: $searchText,
+                        searchResults: $searchResults,
+                        onShowSelected: onShowSelected
+                    )
                 }
             }
             .navigationDestination(for: ScheduleDestination.self) { destination in
@@ -39,6 +47,8 @@ struct ShowsView: View {
                         show: show,
                         navigationPath: $navigationPath,
                         isSearchMode: .constant(false),
+                        searchText: .constant(""),
+                        searchResults: .constant([]),
                         onShowSelected: onShowSelected,
                         onArtistSelected: onArtistSelected
                     )
@@ -53,10 +63,10 @@ struct ShowsView: View {
 // MARK: - Show Search View
 
 struct ShowSearchView: View {
+    @Binding var searchText: String
+    @Binding var searchResults: [ShowItem]
     var onShowSelected: ((ShowItem) -> Void)?
 
-    @State private var searchText = ""
-    @State private var searchResults: [ShowItem] = []
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
@@ -282,6 +292,8 @@ struct ShowDetailContent: View {
     let show: ShowItem
     @Binding var navigationPath: NavigationPath
     @Binding var isSearchMode: Bool
+    @Binding var searchText: String
+    @Binding var searchResults: [ShowItem]
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
 
@@ -474,6 +486,8 @@ struct ShowDetailContent: View {
             // Search overlay (placed before pill so pill stays on top)
             if isSearchMode {
                 ShowSearchOverlay(
+                    searchText: $searchText,
+                    searchResults: $searchResults,
                     onShowSelected: { selectedShow in
                         withAnimation(.easeInOut(duration: 0.25)) {
                             isSearchMode = false
@@ -685,11 +699,11 @@ struct SearchPill: View {
 // MARK: - Search Overlay (appears on top of show detail)
 
 struct ShowSearchOverlay: View {
+    @Binding var searchText: String
+    @Binding var searchResults: [ShowItem]
     var onShowSelected: ((ShowItem) -> Void)?
     var onDismiss: (() -> Void)?
 
-    @State private var searchText = ""
-    @State private var searchResults: [ShowItem] = []
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
