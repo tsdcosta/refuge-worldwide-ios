@@ -41,7 +41,10 @@ struct ArtistsView: View {
     @State private var residentsSkip = 0
     @State private var guestsSkip = 0
     @State private var groupedArtists: [(letter: String, artists: [ArtistListItem])] = []
+    @State private var otherResidents: [ArtistListItem] = []  // Accented + special chars, added at end
+    @State private var otherGuests: [ArtistListItem] = []
     private let pageSize = 50
+    private let asciiLetters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
     private var isInSearchMode: Bool {
         !searchText.isEmpty
@@ -296,12 +299,24 @@ struct ArtistsView: View {
         }
     }
 
-    // Filter to only include artists whose name starts with a letter (A-Z)
-    private func filterAlphabeticArtists(_ artists: [ArtistListItem]) -> [ArtistListItem] {
-        artists.filter { artist in
-            let first = artist.name.prefix(1).uppercased()
-            return first.unicodeScalars.first.map { CharacterSet.letters.contains($0) } ?? false
+    // Check if artist name starts with basic ASCII letter (A-Z, no accents)
+    private func startsWithAsciiLetter(_ artist: ArtistListItem) -> Bool {
+        guard let firstScalar = artist.name.unicodeScalars.first else { return false }
+        return asciiLetters.contains(firstScalar)
+    }
+
+    // Partition artists into (ASCII A-Z, others)
+    private func partitionArtists(_ artists: [ArtistListItem]) -> (ascii: [ArtistListItem], other: [ArtistListItem]) {
+        var ascii: [ArtistListItem] = []
+        var other: [ArtistListItem] = []
+        for artist in artists {
+            if startsWithAsciiLetter(artist) {
+                ascii.append(artist)
+            } else {
+                other.append(artist)
+            }
         }
+        return (ascii, other)
     }
 
     private func loadInitialArtists() async {
@@ -310,9 +325,16 @@ struct ArtistsView: View {
             isLoadingResidents = true
             do {
                 let fetched = try await RefugeAPI.shared.fetchArtists(isResident: true, limit: pageSize, skip: 0)
-                residents = filterAlphabeticArtists(fetched)
+                let (ascii, other) = partitionArtists(fetched)
+                residents = ascii
                 residentsSkip = fetched.count
                 hasMoreResidents = fetched.count == pageSize
+                // If no more pages, append "other" artists now; otherwise save for later
+                if hasMoreResidents {
+                    otherResidents.append(contentsOf: other)
+                } else {
+                    residents.append(contentsOf: other)
+                }
             } catch {
                 print("Failed to fetch residents:", error)
             }
@@ -324,9 +346,16 @@ struct ArtistsView: View {
             isLoadingGuests = true
             do {
                 let fetched = try await RefugeAPI.shared.fetchArtists(isResident: false, limit: pageSize, skip: 0)
-                guests = filterAlphabeticArtists(fetched)
+                let (ascii, other) = partitionArtists(fetched)
+                guests = ascii
                 guestsSkip = fetched.count
                 hasMoreGuests = fetched.count == pageSize
+                // If no more pages, append "other" artists now; otherwise save for later
+                if hasMoreGuests {
+                    otherGuests.append(contentsOf: other)
+                } else {
+                    guests.append(contentsOf: other)
+                }
             } catch {
                 print("Failed to fetch guests:", error)
             }
@@ -366,18 +395,32 @@ struct ArtistsView: View {
         if selectedType == .residents && hasMoreResidents {
             do {
                 let more = try await RefugeAPI.shared.fetchArtists(isResident: true, limit: pageSize, skip: residentsSkip)
-                residents.append(contentsOf: filterAlphabeticArtists(more))
+                let (ascii, other) = partitionArtists(more)
+                residents.append(contentsOf: ascii)
+                otherResidents.append(contentsOf: other)
                 residentsSkip += more.count
                 hasMoreResidents = more.count == pageSize
+                // When pagination ends, append the "other" artists (accented + special chars)
+                if !hasMoreResidents && !otherResidents.isEmpty {
+                    residents.append(contentsOf: otherResidents)
+                    otherResidents = []
+                }
             } catch {
                 print("Failed to load more residents:", error)
             }
         } else if selectedType == .guests && hasMoreGuests {
             do {
                 let more = try await RefugeAPI.shared.fetchArtists(isResident: false, limit: pageSize, skip: guestsSkip)
-                guests.append(contentsOf: filterAlphabeticArtists(more))
+                let (ascii, other) = partitionArtists(more)
+                guests.append(contentsOf: ascii)
+                otherGuests.append(contentsOf: other)
                 guestsSkip += more.count
                 hasMoreGuests = more.count == pageSize
+                // When pagination ends, append the "other" artists (accented + special chars)
+                if !hasMoreGuests && !otherGuests.isEmpty {
+                    guests.append(contentsOf: otherGuests)
+                    otherGuests = []
+                }
             } catch {
                 print("Failed to load more guests:", error)
             }
