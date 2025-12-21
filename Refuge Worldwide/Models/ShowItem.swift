@@ -172,7 +172,7 @@ struct ShowItem: Identifiable, Decodable, Hashable {
 
 // MARK: - Artist List Item (for artist listing)
 
-struct ArtistListItem: Identifiable {
+struct ArtistListItem: Identifiable, Equatable {
     let id: String
     let name: String
     let slug: String

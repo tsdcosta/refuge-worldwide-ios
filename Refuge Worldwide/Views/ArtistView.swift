@@ -40,6 +40,7 @@ struct ArtistsView: View {
     @State private var hasMoreGuests = true
     @State private var residentsSkip = 0
     @State private var guestsSkip = 0
+    @State private var groupedArtists: [(letter: String, artists: [ArtistListItem])] = []
     private let pageSize = 50
 
     private var isInSearchMode: Bool {
@@ -63,9 +64,9 @@ struct ArtistsView: View {
         isInSearchMode ? searchResults : currentArtists
     }
 
-    // Sort A-Z first, then # for non-alphabetic
-    private var groupedArtists: [(letter: String, artists: [ArtistListItem])] {
-        let sorted = displayedArtists.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    // Compute grouped artists from the given list
+    private func computeGroupedArtists(from artists: [ArtistListItem]) -> [(letter: String, artists: [ArtistListItem])] {
+        let sorted = artists.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         let grouped = Dictionary(grouping: sorted) { artist -> String in
             let first = artist.name.prefix(1).uppercased()
             if first.isEmpty { return "#" }
@@ -81,6 +82,10 @@ struct ArtistsView: View {
             if rhs.key == "#" { return true }
             return lhs.key < rhs.key
         }.map { (letter: $0.key, artists: $0.value) }
+    }
+
+    private func updateGroupedArtists() {
+        groupedArtists = computeGroupedArtists(from: displayedArtists)
     }
 
     var body: some View {
@@ -217,6 +222,7 @@ struct ArtistsView: View {
                 if newValue.isEmpty {
                     searchResults = []
                     isSearching = false
+                    updateGroupedArtists()
                     return
                 }
 
@@ -234,6 +240,26 @@ struct ArtistsView: View {
                     guard !Task.isCancelled else { return }
 
                     await performSearch(query: newValue)
+                }
+            }
+            .onChange(of: residents) { _, _ in
+                if selectedType == .residents && !isInSearchMode {
+                    updateGroupedArtists()
+                }
+            }
+            .onChange(of: guests) { _, _ in
+                if selectedType == .guests && !isInSearchMode {
+                    updateGroupedArtists()
+                }
+            }
+            .onChange(of: searchResults) { _, _ in
+                if isInSearchMode {
+                    updateGroupedArtists()
+                }
+            }
+            .onChange(of: selectedType) { _, _ in
+                if !isInSearchMode {
+                    updateGroupedArtists()
                 }
             }
         }
@@ -270,13 +296,21 @@ struct ArtistsView: View {
         }
     }
 
+    // Filter to only include artists whose name starts with a letter (A-Z)
+    private func filterAlphabeticArtists(_ artists: [ArtistListItem]) -> [ArtistListItem] {
+        artists.filter { artist in
+            let first = artist.name.prefix(1).uppercased()
+            return first.unicodeScalars.first.map { CharacterSet.letters.contains($0) } ?? false
+        }
+    }
+
     private func loadInitialArtists() async {
         // Load residents if empty
         if residents.isEmpty {
             isLoadingResidents = true
             do {
                 let fetched = try await RefugeAPI.shared.fetchArtists(isResident: true, limit: pageSize, skip: 0)
-                residents = fetched
+                residents = filterAlphabeticArtists(fetched)
                 residentsSkip = fetched.count
                 hasMoreResidents = fetched.count == pageSize
             } catch {
@@ -290,7 +324,7 @@ struct ArtistsView: View {
             isLoadingGuests = true
             do {
                 let fetched = try await RefugeAPI.shared.fetchArtists(isResident: false, limit: pageSize, skip: 0)
-                guests = fetched
+                guests = filterAlphabeticArtists(fetched)
                 guestsSkip = fetched.count
                 hasMoreGuests = fetched.count == pageSize
             } catch {
@@ -332,7 +366,7 @@ struct ArtistsView: View {
         if selectedType == .residents && hasMoreResidents {
             do {
                 let more = try await RefugeAPI.shared.fetchArtists(isResident: true, limit: pageSize, skip: residentsSkip)
-                residents.append(contentsOf: more)
+                residents.append(contentsOf: filterAlphabeticArtists(more))
                 residentsSkip += more.count
                 hasMoreResidents = more.count == pageSize
             } catch {
@@ -341,7 +375,7 @@ struct ArtistsView: View {
         } else if selectedType == .guests && hasMoreGuests {
             do {
                 let more = try await RefugeAPI.shared.fetchArtists(isResident: false, limit: pageSize, skip: guestsSkip)
-                guests.append(contentsOf: more)
+                guests.append(contentsOf: filterAlphabeticArtists(more))
                 guestsSkip += more.count
                 hasMoreGuests = more.count == pageSize
             } catch {
