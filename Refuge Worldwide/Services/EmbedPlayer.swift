@@ -392,26 +392,30 @@ extension EmbedPlayer: WKScriptMessageHandler {
         guard let body = message.body as? [String: Any],
               let event = body["event"] as? String else { return }
 
+        // Capture current platform once (thread-safe)
+        let platform = stateLock.withLock { _currentPlatform }
+
         switch event {
         case "play":
             updateState(playing: true, buffering: false)
-        case "pause", "finish":
+
+        case "pause", "finish", "error":
             updateState(playing: false, buffering: false)
-        case "error":
-            updateState(playing: false, buffering: false)
+
         case "duration":
             if let durationMs = body["duration"] as? Double {
                 stateLock.withLock {
                     _duration = durationMs / 1000.0
                 }
             }
+
         case "progress":
             if let positionMs = body["position"] as? Double {
                 stateLock.withLock {
                     _currentPosition = positionMs / 1000.0
                 }
                 // Also update duration from progress events (especially important for Mixcloud
-                if let durationMs = body["duration"] as? Double, durationMs > 0 {
+                if platform == .mixcloud, let durationMs = body["duration"] as? Double, durationMs > 0 {
                     stateLock.withLock {
                         _duration = durationMs / 1000.0
                     }

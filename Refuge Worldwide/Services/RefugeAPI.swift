@@ -135,7 +135,7 @@ final class RefugeAPI {
         }
 
         return showsArray.compactMap { item -> ShowItem? in
-            guard let id = item["id"] as? String,
+            guard let _ = item["id"] as? String,
                   let title = item["title"] as? String,
                   let slug = item["slug"] as? String else {
                 return nil
