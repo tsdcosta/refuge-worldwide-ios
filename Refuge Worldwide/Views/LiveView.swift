@@ -12,11 +12,12 @@ struct LiveView: View {
     var onArtistSelected: ((String, String) -> Void)?
 
     @ObservedObject private var radio = RadioPlayer.shared
-    @State private var liveShow: ShowItem?
-    @State private var liveDescription: [String] = []
-    @State private var liveGenres: [String] = []
+    @ObservedObject private var liveService = LiveShowService.shared
     @State private var navigationPath = NavigationPath()
-    @State private var refreshTimer: Timer?
+
+    private var liveShow: ShowItem? { liveService.liveShow }
+    private var liveDescription: [String] { liveService.liveDescription }
+    private var liveGenres: [String] { liveService.liveGenres }
 
     private var timeString: String {
         guard let show = liveShow else { return "" }
@@ -148,56 +149,12 @@ struct LiveView: View {
             }
             .background(Theme.background)
             .task {
-                await fetchLiveShow()
-                startRefreshTimer()
+                liveService.addObserver()
+                await liveService.refresh()
             }
             .onDisappear {
-                stopRefreshTimer()
+                liveService.removeObserver()
             }
-        }
-    }
-
-    private func fetchLiveShow() async {
-        do {
-            liveShow = try await RefugeAPI.shared.fetchLiveNow()
-
-            if let liveID = liveShow?.id {
-                do {
-                    // Fetch full show data from nextup to get artistsCollection
-                    let nextUpShows = try await RefugeAPI.shared.fetchSchedule()
-                    if let fullShow = nextUpShows.first(where: { $0.id == liveID }) {
-                        liveShow = fullShow
-                    }
-                } catch {
-                    print("Failed to hydrate live show from nextup:", error)
-                }
-            }
-
-            // Update Now Playing info with show metadata
-            updateNowPlayingMetadata()
-
-            // Fetch the show page description and genres if slug exists
-            if let slug = liveShow?.slug {
-                do {
-                    let detail = try await RefugeAPI.shared.fetchShowDetail(slug: slug)
-
-                    if let g = detail.genres {
-                        liveGenres = g.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                    }
-
-                    if let paragraphs = detail.descriptionParagraphs, !paragraphs.isEmpty {
-                        liveDescription = paragraphs
-                    } else if let text = detail.description {
-                        liveDescription = splitIntoParagraphs(text)
-                    } else {
-                        liveDescription = []
-                    }
-                } catch {
-                    print("Failed to fetch show detail via API, original HTML fallback could be used:", error)
-                }
-            }
-        } catch {
-            print("Failed to fetch liveNow or description:", error)
         }
     }
 
@@ -209,37 +166,6 @@ struct LiveView: View {
         } else {
             radio.play()
         }
-    }
-
-    private func updateNowPlayingMetadata() {
-        guard let show = liveShow else { return }
-        radio.updateNowPlayingInfo(
-            title: show.title,
-            subtitle: timeString,
-            artworkURL: show.coverImage?.url
-        )
-    }
-
-    private func splitIntoParagraphs(_ text: String) -> [String] {
-        let parts = text
-            .components(separatedBy: CharacterSet.newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return parts
-    }
-
-    private func startRefreshTimer() {
-        stopRefreshTimer()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-            Task {
-                await fetchLiveShow()
-            }
-        }
-    }
-
-    private func stopRefreshTimer() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
     }
 }
 

@@ -16,10 +16,30 @@ struct RefugeRadioApp: App {
     // This sets up the remote command center
     private let radioPlayer = RadioPlayer.shared
 
+    @State private var splashOpacity: Double = 1.0
+
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .preferredColorScheme(.dark)
+            ZStack {
+                RootView()
+                    .preferredColorScheme(.dark)
+
+                ZStack {
+                    Color.white.ignoresSafeArea()
+                    Image("navigation-smile")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                }
+                .opacity(splashOpacity)
+                .animation(.easeOut(duration: 0.3), value: splashOpacity)
+                .allowsHitTesting(splashOpacity > 0)
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    splashOpacity = 0
+                }
+            }
         }
     }
 }
