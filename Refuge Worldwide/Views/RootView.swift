@@ -53,7 +53,8 @@ struct RootView: View {
             ScheduleView(
                 navigationPath: $scheduleNavigationPath,
                 onShowSelected: handleShowSelected,
-                onArtistSelected: handleArtistSelected
+                onArtistSelected: handleArtistSelected,
+                onLiveShowSelected: { selectedTab = .live }
             )
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")

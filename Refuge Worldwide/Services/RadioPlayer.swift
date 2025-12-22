@@ -429,10 +429,9 @@ final class RadioPlayer: ObservableObject {
 
     func resume() {
         if isEmbedPlaying && currentPlayingURL != nil {
+            // Don't set state here - let embedPlayer.onStateChanged handle it
+            // This is important because embedPlayer.resume() may defer if app is not active
             embedPlayer.resume()
-            isPlaying = true
-            isBuffering = true
-            updateNowPlayingPlaybackState()
         } else {
             play()
         }

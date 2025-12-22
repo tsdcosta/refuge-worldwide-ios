@@ -19,6 +19,7 @@ struct ScheduleView: View {
     @Binding var navigationPath: NavigationPath
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
+    var onLiveShowSelected: (() -> Void)?
     @State private var scheduleDays: [ScheduleDay] = []
 
     var body: some View {
@@ -35,7 +36,11 @@ struct ScheduleView: View {
                             LazyVStack(spacing: 0) {
                                 ForEach(day.shows) { show in
                                     Button {
-                                        onShowSelected?(show)
+                                        if show.isLiveNow {
+                                            onLiveShowSelected?()
+                                        } else {
+                                            onShowSelected?(show)
+                                        }
                                     } label: {
                                         ShowCard(show: show, isLive: show.isLiveNow)
                                     }

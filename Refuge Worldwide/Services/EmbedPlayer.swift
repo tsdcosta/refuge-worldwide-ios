@@ -26,6 +26,8 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
     private var _currentPosition: Double = 0
     private var _duration: Double = 0
     private var _currentPlatform: EmbedPlatform?
+    private var _needsRecreation = false
+    private var _pendingResume = false
 
     var isPlaying: Bool {
         stateLock.withLock { _isPlaying }
@@ -56,6 +58,41 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
 
     private override init() {
         super.init()
+        setupAppLifecycleObservers()
+    }
+
+    private func setupAppLifecycleObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidEnterBackground() {
+        // Mark that webview may need special handling on next resume
+        let hasURL = stateLock.withLock { _currentURL != nil }
+        if hasURL {
+            stateLock.withLock { _needsRecreation = true }
+            print("[EmbedPlayer] App entered background")
+        }
+    }
+
+    @objc private func appDidBecomeActive() {
+        // Check if there's a pending resume from lock screen
+        let shouldResume = stateLock.withLock { _pendingResume }
+        if shouldResume {
+            print("[EmbedPlayer] App became active, executing pending resume")
+            stateLock.withLock { _pendingResume = false }
+            performResume()
+        }
     }
 
     /// Check if a URL is a SoundCloud URL
@@ -96,6 +133,8 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
             _currentPlatform = platform
             _currentPosition = 0
             _duration = 0
+            _needsRecreation = false
+            _pendingResume = false
         }
         onStateChanged?()
 
@@ -129,21 +168,102 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
     func resume() {
         print("[EmbedPlayer] Resume requested")
 
+        // Check if app is active - if not, defer resume until it becomes active
+        // WKWebView's WebContent process is suspended when app is not active,
+        // so JS calls won't execute and audio won't play
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            let appState = UIApplication.shared.applicationState
+            if appState != .active {
+                print("[EmbedPlayer] App not active (state: \(appState.rawValue)), deferring resume")
+                self.stateLock.withLock { self._pendingResume = true }
+                return
+            }
+
+            self.performResume()
+        }
+    }
+
+    private func performResume() {
+        let savedURL = currentURL
+        let savedPosition = currentPosition
+        let platform = currentPlatform
+
         stateLock.withLock {
             _isPlaying = true
             _isBuffering = true
         }
         onStateChanged?()
 
-        let platform = currentPlatform
         DispatchQueue.main.async { [weak self] in
-            switch platform {
-            case .soundcloud:
-                self?.webView?.evaluateJavaScript("widget.play();", completionHandler: nil)
-            case .mixcloud:
-                self?.webView?.evaluateJavaScript("widget.play();", completionHandler: nil)
-            case .none:
-                break
+            guard let self = self else { return }
+
+            // Check if webview exists and is attached
+            guard let webView = self.webView, webView.superview != nil else {
+                print("[EmbedPlayer] Webview invalid, recreating from saved state")
+                self.stateLock.withLock { self._needsRecreation = false }
+                if let url = savedURL {
+                    self.recreateAndSeek(url: url, position: savedPosition, platform: platform)
+                }
+                return
+            }
+
+            // Try to resume via JS - use a test call first to check if widget is alive
+            webView.evaluateJavaScript("typeof widget !== 'undefined'") { [weak self] result, error in
+                guard let self = self else { return }
+
+                let widgetExists = (result as? Bool) == true
+
+                if let error = error {
+                    // Real JS errors (not just type bridging issues) indicate dead webview
+                    let nsError = error as NSError
+                    // WKErrorJavaScriptResultTypeIsUnsupported = 5, this is OK
+                    // WKErrorWebContentProcessTerminated = 9, WKErrorWebViewInvalidated = 12 are fatal
+                    if nsError.domain == "WKErrorDomain" && (nsError.code == 9 || nsError.code == 12) {
+                        print("[EmbedPlayer] Webview terminated/invalidated, recreating")
+                        self.stateLock.withLock { self._needsRecreation = false }
+                        if let url = savedURL {
+                            self.recreateAndSeek(url: url, position: savedPosition, platform: platform)
+                        }
+                        return
+                    }
+                }
+
+                if !widgetExists {
+                    print("[EmbedPlayer] Widget not found in JS context, recreating")
+                    self.stateLock.withLock { self._needsRecreation = false }
+                    if let url = savedURL {
+                        self.recreateAndSeek(url: url, position: savedPosition, platform: platform)
+                    }
+                    return
+                }
+
+                // Widget exists, call play
+                print("[EmbedPlayer] Widget alive, calling play()")
+                self.stateLock.withLock { self._needsRecreation = false }
+                webView.evaluateJavaScript("widget.play();", completionHandler: nil)
+            }
+        }
+    }
+
+    private func recreateAndSeek(url: URL, position: Double, platform: EmbedPlatform?) {
+        guard let platform = platform else {
+            // Determine platform from URL if not saved
+            if EmbedPlayer.isSoundCloudURL(url) {
+                setupAndPlay(url: url, platform: .soundcloud)
+            } else if EmbedPlayer.isMixcloudURL(url) {
+                setupAndPlay(url: url, platform: .mixcloud)
+            }
+            return
+        }
+
+        setupAndPlay(url: url, platform: platform)
+
+        // Seek to saved position after a delay to allow widget to initialize
+        if position > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.seekTo(position: position)
             }
         }
     }
@@ -170,6 +290,8 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
             _currentPosition = 0
             _duration = 0
             _currentPlatform = nil
+            _needsRecreation = false
+            _pendingResume = false
         }
         onStateChanged?()
     }
