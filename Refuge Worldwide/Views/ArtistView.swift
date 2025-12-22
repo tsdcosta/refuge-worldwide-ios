@@ -19,6 +19,19 @@ enum ArtistType: String, CaseIterable {
     }
 }
 
+// MARK: - Letter Section (for grouped artist lists)
+
+struct LetterSection: Identifiable, Equatable {
+    let letter: String
+    let artists: [ArtistListItem]
+
+    var id: String { letter }
+
+    static func == (lhs: LetterSection, rhs: LetterSection) -> Bool {
+        lhs.letter == rhs.letter && lhs.artists.map(\.id) == rhs.artists.map(\.id)
+    }
+}
+
 // MARK: - Artists List View (tab view)
 
 struct ArtistsView: View {
@@ -40,7 +53,7 @@ struct ArtistsView: View {
     @State private var hasMoreGuests = true
     @State private var residentsSkip = 0
     @State private var guestsSkip = 0
-    @State private var groupedArtists: [(letter: String, artists: [ArtistListItem])] = []
+    @State private var groupedArtists: [LetterSection] = []
     @State private var otherResidents: [ArtistListItem] = []  // Accented + special chars, added at end
     @State private var otherGuests: [ArtistListItem] = []
     private let pageSize = 50
@@ -67,24 +80,41 @@ struct ArtistsView: View {
         isInSearchMode ? searchResults : currentArtists
     }
 
-    // Compute grouped artists from the given list
-    private func computeGroupedArtists(from artists: [ArtistListItem]) -> [(letter: String, artists: [ArtistListItem])] {
-        let sorted = artists.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        let grouped = Dictionary(grouping: sorted) { artist -> String in
+    // Compute grouped artists from the given list - optimized to avoid redundant work
+    private func computeGroupedArtists(from artists: [ArtistListItem]) -> [LetterSection] {
+        guard !artists.isEmpty else { return [] }
+
+        // Group first, then sort within each group only if needed
+        var grouped: [String: [ArtistListItem]] = [:]
+        grouped.reserveCapacity(27) // A-Z + #
+
+        for artist in artists {
             let first = artist.name.prefix(1).uppercased()
-            if first.isEmpty { return "#" }
-            // Check if it's a letter A-Z
-            if first.unicodeScalars.first.map({ CharacterSet.letters.contains($0) }) == true {
-                return first
+            let key: String
+            if first.isEmpty {
+                key = "#"
+            } else if first.unicodeScalars.first.map({ CharacterSet.letters.contains($0) }) == true {
+                key = first
+            } else {
+                key = "#"
             }
-            return "#"
+            grouped[key, default: []].append(artist)
         }
-        // Sort: A-Z first, then #
-        return grouped.sorted { lhs, rhs in
-            if lhs.key == "#" { return false }
-            if rhs.key == "#" { return true }
-            return lhs.key < rhs.key
-        }.map { (letter: $0.key, artists: $0.value) }
+
+        // Sort keys: A-Z first, then #
+        let sortedKeys = grouped.keys.sorted { lhs, rhs in
+            if lhs == "#" { return false }
+            if rhs == "#" { return true }
+            return lhs < rhs
+        }
+
+        // Sort artists within each section and create LetterSection
+        return sortedKeys.map { key in
+            let sectionArtists = grouped[key]!.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            return LetterSection(letter: key, artists: sectionArtists)
+        }
     }
 
     private func updateGroupedArtists() {
@@ -164,9 +194,9 @@ struct ArtistsView: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            ForEach(groupedArtists, id: \.letter) { group in
+                            ForEach(groupedArtists) { section in
                                 Section {
-                                    ForEach(group.artists) { artist in
+                                    ForEach(Array(section.artists.enumerated()), id: \.element.id) { index, artist in
                                         Button {
                                             navigationPath.append(ScheduleDestination.artistDetail(slug: artist.slug, name: artist.name))
                                         } label: {
@@ -174,7 +204,7 @@ struct ArtistsView: View {
                                         }
                                         .buttonStyle(PlainButtonStyle())
 
-                                        if artist.id != group.artists.last?.id {
+                                        if index < section.artists.count - 1 {
                                             Rectangle()
                                                 .fill(Color.black.opacity(0.08))
                                                 .frame(height: 1)
@@ -182,7 +212,7 @@ struct ArtistsView: View {
                                         }
                                     }
                                 } header: {
-                                    LetterPill(letter: group.letter)
+                                    LetterPill(letter: section.letter)
                                         .padding(.horizontal, Theme.Spacing.base)
                                         .padding(.vertical, Theme.Spacing.sm)
                                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -487,9 +517,17 @@ struct ArtistRow: View {
 
     var body: some View {
         HStack(spacing: Theme.Spacing.md) {
-            // Artist photo - circular
+            // Artist photo - circular with optimized loading
             if let photoURL = artist.photoURL {
                 KFImage(photoURL)
+                    .placeholder {
+                        Circle()
+                            .fill(Color.black.opacity(0.1))
+                    }
+                    .fade(duration: 0.2)
+                    .cancelOnDisappear(true)
+                    .downsampling(size: CGSize(width: imageSize * 2, height: imageSize * 2))
+                    .cacheOriginalImage()
                     .resizable()
                     .scaledToFill()
                     .frame(width: imageSize, height: imageSize)
@@ -661,6 +699,13 @@ struct ArtistShowCard: View {
             // Cover image - indented to match section title
             if let url = show.coverImageURL {
                 KFImage(url)
+                    .placeholder {
+                        Theme.cardBackground
+                    }
+                    .fade(duration: 0.2)
+                    .cancelOnDisappear(true)
+                    .downsampling(size: CGSize(width: rowHeight * 2, height: rowHeight * 2))
+                    .cacheOriginalImage()
                     .resizable()
                     .scaledToFill()
                     .frame(width: rowHeight, height: rowHeight)
