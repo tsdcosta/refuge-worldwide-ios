@@ -94,6 +94,8 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
             _isBuffering = true
             _isPlaying = true
             _currentPlatform = platform
+            _currentPosition = 0
+            _duration = 0
         }
         onStateChanged?()
 

@@ -387,6 +387,10 @@ final class RadioPlayer: ObservableObject {
             nowPlayingArtworkURL = artworkURL
         }
 
+        // Reset seek state immediately to avoid showing stale data
+        currentPosition = 0
+        duration = 0
+
         // Check if this is an embeddable URL (SoundCloud or Mixcloud)
         if EmbedPlayer.isEmbeddableURL(url) {
             // Stop the audio engine if playing
