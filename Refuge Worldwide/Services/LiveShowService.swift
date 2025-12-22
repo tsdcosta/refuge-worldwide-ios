@@ -73,6 +73,11 @@ final class LiveShowService: ObservableObject {
                 // Reset description/genres when show changes
                 liveDescription = []
                 liveGenres = []
+
+                // Update Now Playing only when show changes
+                if let show = newShow {
+                    updateNowPlayingMetadata(show: show)
+                }
             }
 
             // Fetch show details (description, genres)
@@ -101,11 +106,6 @@ final class LiveShowService: ObservableObject {
                 } catch {
                     print("[LiveShowService] Failed to fetch show detail:", error)
                 }
-            }
-
-            // Update Now Playing if live stream is active
-            if let show = liveShow {
-                updateNowPlayingMetadata(show: show)
             }
         } catch {
             print("[LiveShowService] Failed to fetch live show:", error)

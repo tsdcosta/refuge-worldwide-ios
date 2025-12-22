@@ -561,14 +561,20 @@ final class RadioPlayer: ObservableObject {
     }
 
     func updateNowPlayingInfo(title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil) {
+        let previousArtworkURL = nowPlayingArtworkURL
+
         if let title = title { nowPlayingTitle = title }
         if let subtitle = subtitle { nowPlayingSubtitle = subtitle }
         if let artworkURL = artworkURL {
-            // Clear cached artwork when URL changes to avoid showing stale artwork
-            if nowPlayingArtworkURL != artworkURL {
-                cachedArtwork = nil
-            }
             nowPlayingArtworkURL = artworkURL
+        }
+
+        // Determine if we need to load artwork
+        let artworkURLChanged = nowPlayingArtworkURL != previousArtworkURL
+        let needsArtworkLoad = artworkURLChanged || (nowPlayingArtworkURL != nil && cachedArtwork == nil)
+
+        if artworkURLChanged {
+            cachedArtwork = nil
         }
 
         var info: [String: Any] = [
@@ -583,9 +589,15 @@ final class RadioPlayer: ObservableObject {
             info[MPMediaItemPropertyArtist] = nowPlayingSubtitle
         }
 
+        // Preserve existing artwork if we have it cached
+        if let artwork = cachedArtwork {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        if let url = nowPlayingArtworkURL {
+        // Load artwork if URL changed or we don't have cached artwork yet
+        if needsArtworkLoad, let url = nowPlayingArtworkURL {
             loadArtwork(from: url)
         }
     }
