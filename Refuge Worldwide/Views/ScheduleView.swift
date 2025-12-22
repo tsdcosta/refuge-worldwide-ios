@@ -19,6 +19,7 @@ struct ScheduleView: View {
     @Binding var navigationPath: NavigationPath
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
     var onLiveShowSelected: (() -> Void)?
     @State private var scheduleDays: [ScheduleDay] = []
 
@@ -61,9 +62,9 @@ struct ScheduleView: View {
             .navigationDestination(for: ScheduleDestination.self) { destination in
                 switch destination {
                 case .showDetail(let show):
-                    ShowDetailContent(show: show, navigationPath: $navigationPath, isSearchMode: .constant(false), searchText: .constant(""), searchResults: .constant([]), onShowSelected: onShowSelected)
+                    ShowDetailContent(show: show, navigationPath: $navigationPath, isSearchMode: .constant(false), searchText: .constant(""), searchResults: .constant([]), genreFilter: .constant(nil), onShowSelected: onShowSelected, onArtistSelected: onArtistSelected, onGenreSelected: onGenreSelected)
                 case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
+                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected, onGenreSelected: onGenreSelected)
                 }
             }
             .task {
@@ -269,6 +270,7 @@ struct ArtistLinksView: View {
 struct RelatedShowCard: View {
     let show: ShowDetail.RelatedShow
     var onArtistSelected: ((String, String) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
     private let rowHeight: CGFloat = 80
 
     private var formattedDate: String? {
@@ -334,22 +336,27 @@ struct RelatedShowCard: View {
                     RelatedShowArtistLinks(artists: artists, onArtistSelected: onArtistSelected)
                 }
 
-                // Genre badges
+                // Genre badges (tappable)
                 if let genres = show.genres, !genres.isEmpty {
                     HStack(spacing: Theme.Spacing.xs) {
                         ForEach(genres.prefix(2), id: \.self) { genre in
-                            Text(genre)
-                                .font(.system(size: 9, weight: .medium))
-                                .textCase(.uppercase)
-                                .tracking(0.3)
-                                .foregroundColor(Theme.foreground.opacity(0.7))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
-                                )
-                                .clipShape(Capsule())
+                            Button {
+                                onGenreSelected?(genre)
+                            } label: {
+                                Text(genre)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .textCase(.uppercase)
+                                    .tracking(0.3)
+                                    .foregroundColor(Theme.foreground.opacity(0.7))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }

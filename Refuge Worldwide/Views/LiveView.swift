@@ -10,6 +10,7 @@ import SwiftUI
 struct LiveView: View {
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
 
     @ObservedObject private var radio = RadioPlayer.shared
     @ObservedObject private var liveService = LiveShowService.shared
@@ -37,8 +38,8 @@ struct LiveView: View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Cover image with live indicator overlay
-                    ZStack(alignment: .topLeading) {
+                    // Cover image with live indicator and play button overlay
+                    ZStack {
                         if let coverURL = liveShow?.coverImage?.url {
                             Color.clear
                                 .aspectRatio(1, contentMode: .fit)
@@ -63,10 +64,31 @@ struct LiveView: View {
                                 .background(Theme.cardBackground)
                         }
 
-                        // Live indicator - only show when live stream is active
-                        if (radio.isPlaying || radio.isBuffering) && radio.isLiveStream {
-                            LiveIndicator()
+                        // Live indicator - top left, only show when live stream is playing (not buffering)
+                        if radio.isPlaying && radio.isLiveStream && !radio.isBuffering {
+                            VStack {
+                                HStack {
+                                    LiveIndicator()
+                                        .padding(Theme.Spacing.base)
+                                    Spacer()
+                                }
+                                Spacer()
+                            }
+                        }
+
+                        // Play/Stop button - bottom left
+                        VStack {
+                            Spacer()
+                            HStack {
+                                LivePlayButton(
+                                    isPlaying: radio.isPlaying && radio.isLiveStream,
+                                    isBuffering: radio.isBuffering && radio.isLiveStream
+                                ) {
+                                    togglePlayback()
+                                }
                                 .padding(Theme.Spacing.base)
+                                Spacer()
+                            }
                         }
                     }
 
@@ -104,11 +126,16 @@ struct LiveView: View {
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
 
-                            // Genre badges - website style (centered)
+                            // Genre badges - website style (centered, tappable)
                             if !liveGenres.isEmpty {
                                 HStack(spacing: Theme.Spacing.sm) {
                                     ForEach(liveGenres, id: \.self) { genre in
-                                        GenreBadge(genre: genre)
+                                        Button {
+                                            onGenreSelected?(genre)
+                                        } label: {
+                                            GenreBadge(genre: genre)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
                                     }
                                 }
                             }
@@ -134,17 +161,8 @@ struct LiveView: View {
                             }
                         }
                         .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.bottom, Theme.Spacing.xl)
                     }
-
-                    // Play/Stop button - pill style (only reflects live stream state)
-                    PlayButton(
-                        isPlaying: radio.isPlaying && radio.isLiveStream,
-                        isBuffering: radio.isBuffering && radio.isLiveStream
-                    ) {
-                        togglePlayback()
-                    }
-                    .padding(.top, Theme.Spacing.xl)
-                    .padding(.bottom, Theme.Spacing.xl)
                 }
             }
             .background(Theme.background)
@@ -200,36 +218,28 @@ struct LiveIndicator: View {
     }
 }
 
-// MARK: - Play Button Component
+// MARK: - Live Play Button Component (simple icon on image)
 
-struct PlayButton: View {
+struct LivePlayButton: View {
     let isPlaying: Bool
     let isBuffering: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Theme.Spacing.sm) {
+            ZStack {
                 if isBuffering {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
-                        .scaleEffect(0.8)
+                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
                 } else {
                     Image(systemName: isPlaying ? "stop.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(Theme.foreground)
                 }
-
-                Text(isBuffering ? "Loading..." : (isPlaying ? "Stop" : "Listen Live"))
-                    .font(.mediumBody(size: Theme.Typography.bodyBase))
             }
-            .foregroundColor(Theme.background)
-            .frame(minWidth: 160)
-            .pillButton(
-                backgroundColor: Theme.foreground,
-                borderColor: Theme.foreground,
-                shadowColor: Theme.Shadow.pillBlack,
-                height: 50
-            )
+            .frame(width: 50, height: 50)
+            .background(Theme.background.opacity(0.8))
+            .clipShape(Circle())
         }
         .disabled(isBuffering)
     }

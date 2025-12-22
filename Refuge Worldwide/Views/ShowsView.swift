@@ -17,8 +17,10 @@ struct ShowsView: View {
     @Binding var isSearchMode: Bool
     @Binding var searchText: String
     @Binding var searchResults: [ShowItem]
+    @Binding var genreFilter: String?
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -30,14 +32,18 @@ struct ShowsView: View {
                         isSearchMode: $isSearchMode,
                         searchText: $searchText,
                         searchResults: $searchResults,
+                        genreFilter: $genreFilter,
                         onShowSelected: onShowSelected,
-                        onArtistSelected: onArtistSelected
+                        onArtistSelected: onArtistSelected,
+                        onGenreSelected: onGenreSelected
                     )
                 } else {
                     ShowSearchView(
                         searchText: $searchText,
                         searchResults: $searchResults,
-                        onShowSelected: onShowSelected
+                        genreFilter: $genreFilter,
+                        onShowSelected: onShowSelected,
+                        onGenreSelected: onGenreSelected
                     )
                 }
             }
@@ -50,11 +56,13 @@ struct ShowsView: View {
                         isSearchMode: .constant(false),
                         searchText: .constant(""),
                         searchResults: .constant([]),
+                        genreFilter: .constant(nil),
                         onShowSelected: onShowSelected,
-                        onArtistSelected: onArtistSelected
+                        onArtistSelected: onArtistSelected,
+                        onGenreSelected: onGenreSelected
                     )
                 case .artistDetail(let slug, let name):
-                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected)
+                    ArtistDetailView(artistSlug: slug, artistName: name, navigationPath: $navigationPath, onShowSelected: onShowSelected, onGenreSelected: onGenreSelected)
                 }
             }
         }
@@ -66,14 +74,28 @@ struct ShowsView: View {
 struct ShowSearchView: View {
     @Binding var searchText: String
     @Binding var searchResults: [ShowItem]
+    @Binding var genreFilter: String?
     var onShowSelected: ((ShowItem) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
 
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var showGenrePicker = false
+    @State private var availableGenres: [String] = []
     @FocusState private var isSearchFocused: Bool
 
     private var hasTyped: Bool {
         !searchText.isEmpty
+    }
+
+    private var isFiltering: Bool {
+        genreFilter != nil
+    }
+
+    // Local handler for genre selection - stays in this view
+    private func handleLocalGenreSelection(_ genre: String) {
+        searchText = ""
+        genreFilter = genre
     }
 
     var body: some View {
@@ -86,11 +108,38 @@ struct ShowSearchView: View {
                     }
 
                 VStack(spacing: 0) {
-                    if hasTyped {
+                    if hasTyped || isFiltering {
                         Spacer()
                             .frame(height: geometry.safeAreaInsets.top + Theme.Spacing.xl)
                     } else {
                         Spacer()
+                    }
+
+                    // Genre filter chip (when filtering)
+                    if let genre = genreFilter {
+                        HStack {
+                            Text(genre)
+                                .font(.mediumBody(size: Theme.Typography.bodySmall))
+                                .foregroundColor(Theme.background)
+                                .padding(.leading, Theme.Spacing.md)
+                                .padding(.trailing, Theme.Spacing.xs)
+                                .padding(.vertical, Theme.Spacing.sm)
+
+                            Button {
+                                genreFilter = nil
+                                searchResults = []
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Theme.background)
+                            }
+                            .padding(.trailing, Theme.Spacing.md)
+                        }
+                        .background(Theme.foreground)
+                        .clipShape(Capsule())
+                        .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.bottom, Theme.Spacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     // Search bar - white horizontal line
@@ -108,14 +157,28 @@ struct ShowSearchView: View {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
                                     .scaleEffect(0.8)
-                            } else if !searchText.isEmpty {
-                                Button {
-                                    searchText = ""
-                                    searchResults = []
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(Theme.secondaryText)
+                            } else {
+                                if !searchText.isEmpty {
+                                    Button {
+                                        searchText = ""
+                                        searchResults = []
+                                        isSearchFocused = true
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(Theme.secondaryText)
+                                    }
                                 }
+
+                                // Genre filter button
+                                Button {
+                                    isSearchFocused = false
+                                    showGenrePicker = true
+                                } label: {
+                                    Image(systemName: "line.3.horizontal.decrease.circle")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(Theme.foreground)
+                                }
+                                .padding(.leading, Theme.Spacing.xs)
                             }
                         }
                         .padding(.horizontal, Theme.Spacing.base)
@@ -128,16 +191,16 @@ struct ShowSearchView: View {
                     }
                     .padding(.horizontal, Theme.Spacing.lg)
 
-                    if hasTyped {
+                    if hasTyped || isFiltering {
                         // Search results
                         if isSearching && searchResults.isEmpty {
                             Spacer()
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
                             Spacer()
-                        } else if searchResults.isEmpty && !searchText.isEmpty && !isSearching {
+                        } else if searchResults.isEmpty && (hasTyped || isFiltering) && !isSearching {
                             Spacer()
-                            Text("No shows found")
+                            Text(isFiltering ? "No shows found for this genre" : "No shows found")
                                 .font(.lightBody(size: Theme.Typography.bodyBase))
                                 .foregroundColor(Theme.secondaryText)
                             Spacer()
@@ -145,12 +208,11 @@ struct ShowSearchView: View {
                             ScrollView {
                                 LazyVStack(spacing: 0) {
                                     ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, show in
-                                        Button {
-                                            onShowSelected?(show)
-                                        } label: {
-                                            SearchResultRow(show: show)
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
+                                        SearchResultRowTappable(
+                                            show: show,
+                                            onShowSelected: onShowSelected,
+                                            onGenreSelected: handleLocalGenreSelection
+                                        )
 
                                         if index < searchResults.count - 1 {
                                             Rectangle()
@@ -165,18 +227,66 @@ struct ShowSearchView: View {
                         }
                     } else {
                         Spacer()
+                        VStack(spacing: Theme.Spacing.md) {
+                            Text("Type to search for shows")
+                                .font(.lightBody(size: Theme.Typography.bodyBase))
+                                .foregroundColor(Theme.secondaryText)
+                            Text("or")
+                                .font(.lightBody(size: Theme.Typography.bodySmall))
+                                .foregroundColor(Theme.secondaryText.opacity(0.7))
+                            Button {
+                                showGenrePicker = true
+                            } label: {
+                                HStack(spacing: Theme.Spacing.sm) {
+                                    Image(systemName: "line.3.horizontal.decrease.circle")
+                                    Text("Filter by genre")
+                                }
+                                .font(.mediumBody(size: Theme.Typography.bodyBase))
+                                .foregroundColor(Theme.foreground)
+                                .padding(.horizontal, Theme.Spacing.lg)
+                                .padding(.vertical, Theme.Spacing.md)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Theme.foreground, lineWidth: 1)
+                                )
+                            }
+                        }
+                        Spacer()
                     }
                 }
             }
         }
         .animation(.easeInOut(duration: 0.3), value: hasTyped)
+        .animation(.easeInOut(duration: 0.3), value: isFiltering)
+        .task {
+            // Load genres for picker
+            do {
+                availableGenres = try await RefugeAPI.shared.fetchGenres()
+            } catch {
+                print("Failed to load genres:", error)
+            }
+        }
+        .task(id: genreFilter) {
+            guard let genre = genreFilter else { return }
+            await loadShowsByGenre(genre)
+        }
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
 
             if newValue.isEmpty {
-                searchResults = []
+                // If we have a genre filter, reload genre results; otherwise clear
+                if let genre = genreFilter {
+                    Task { await loadShowsByGenre(genre) }
+                } else {
+                    searchResults = []
+                }
                 isSearching = false
                 return
+            }
+
+            // Clear genre filter when typing
+            if genreFilter != nil {
+                genreFilter = nil
             }
 
             isSearching = true
@@ -193,6 +303,31 @@ struct ShowSearchView: View {
                 await performSearch(query: newValue)
             }
         }
+        .sheet(isPresented: $showGenrePicker) {
+            GenrePickerSheet(
+                genres: availableGenres,
+                onGenreSelected: { genre in
+                    showGenrePicker = false
+                    handleLocalGenreSelection(genre)
+                }
+            )
+        }
+    }
+
+    private func loadShowsByGenre(_ genre: String) async {
+        isSearching = true
+        do {
+            let shows = try await RefugeAPI.shared.fetchShowsByGenre(genre: genre)
+            if genreFilter == genre {
+                searchResults = shows
+            }
+        } catch {
+            print("Failed to fetch shows by genre:", error)
+            if genreFilter == genre {
+                searchResults = []
+            }
+        }
+        isSearching = false
     }
 
     private func performSearch(query: String) async {
@@ -217,6 +352,7 @@ struct ShowSearchView: View {
 
 struct SearchResultRow: View {
     let show: ShowItem
+    var onGenreSelected: ((String) -> Void)?
     private let rowHeight: CGFloat = 80
 
     private var formattedDate: String? {
@@ -265,18 +401,23 @@ struct SearchResultRow: View {
                 if let genres = show.genres, !genres.isEmpty {
                     HStack(spacing: Theme.Spacing.xs) {
                         ForEach(genres.prefix(2), id: \.self) { genre in
-                            Text(genre)
-                                .font(.system(size: 9, weight: .medium))
-                                .textCase(.uppercase)
-                                .tracking(0.3)
-                                .foregroundColor(Theme.foreground.opacity(0.7))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
-                                )
-                                .clipShape(Capsule())
+                            Button {
+                                onGenreSelected?(genre)
+                            } label: {
+                                Text(genre)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .textCase(.uppercase)
+                                    .tracking(0.3)
+                                    .foregroundColor(Theme.foreground.opacity(0.7))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }
@@ -303,8 +444,10 @@ struct ShowDetailContent: View {
     @Binding var isSearchMode: Bool
     @Binding var searchText: String
     @Binding var searchResults: [ShowItem]
+    @Binding var genreFilter: String?
     var onShowSelected: ((ShowItem) -> Void)?
     var onArtistSelected: ((String, String) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
 
     @State private var description: [String] = []
     @State private var genres: [String] = []
@@ -389,11 +532,16 @@ struct ShowDetailContent: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    // Genre badges (centered)
+                    // Genre badges (centered, tappable)
                     if !genres.isEmpty {
                         HStack(spacing: Theme.Spacing.sm) {
                             ForEach(genres, id: \.self) { genre in
-                                GenreBadge(genre: genre)
+                                Button {
+                                    onGenreSelected?(genre)
+                                } label: {
+                                    GenreBadge(genre: genre)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                     }
@@ -501,7 +649,7 @@ struct ShowDetailContent: View {
                                 Button {
                                     onShowSelected?(ShowItem(from: relatedShow))
                                 } label: {
-                                    RelatedShowCard(show: relatedShow, onArtistSelected: onArtistSelected)
+                                    RelatedShowCard(show: relatedShow, onArtistSelected: onArtistSelected, onGenreSelected: onGenreSelected)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -529,6 +677,7 @@ struct ShowDetailContent: View {
                 ShowSearchOverlay(
                     searchText: $searchText,
                     searchResults: $searchResults,
+                    genreFilter: $genreFilter,
                     onShowSelected: { selectedShow in
                         withAnimation(.easeInOut(duration: 0.25)) {
                             isSearchMode = false
@@ -770,12 +919,25 @@ struct SearchPill: View {
 struct ShowSearchOverlay: View {
     @Binding var searchText: String
     @Binding var searchResults: [ShowItem]
+    @Binding var genreFilter: String?
     var onShowSelected: ((ShowItem) -> Void)?
     var onDismiss: (() -> Void)?
 
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var showGenrePicker = false
+    @State private var availableGenres: [String] = []
     @FocusState private var isSearchFocused: Bool
+
+    private var isFiltering: Bool {
+        genreFilter != nil
+    }
+
+    // Local handler for genre selection within overlay - stays in overlay
+    private func handleLocalGenreSelection(_ genre: String) {
+        searchText = ""
+        genreFilter = genre
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -783,6 +945,33 @@ struct ShowSearchOverlay: View {
             VStack(spacing: 0) {
                 Spacer()
                     .frame(height: Theme.Spacing.xl + 44) // Space for pill
+
+                // Genre filter chip (when filtering)
+                if let genre = genreFilter {
+                    HStack {
+                        Text(genre)
+                            .font(.mediumBody(size: Theme.Typography.bodySmall))
+                            .foregroundColor(Theme.background)
+                            .padding(.leading, Theme.Spacing.md)
+                            .padding(.trailing, Theme.Spacing.xs)
+                            .padding(.vertical, Theme.Spacing.sm)
+
+                        Button {
+                            genreFilter = nil
+                            searchResults = []
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Theme.background)
+                        }
+                        .padding(.trailing, Theme.Spacing.md)
+                    }
+                    .background(Theme.foreground)
+                    .clipShape(Capsule())
+                    .padding(.horizontal, Theme.Spacing.lg)
+                    .padding(.bottom, Theme.Spacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 // Search bar - white horizontal line
                 VStack(spacing: 0) {
@@ -799,14 +988,28 @@ struct ShowSearchOverlay: View {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
                                 .scaleEffect(0.8)
-                        } else if !searchText.isEmpty {
-                            Button {
-                                searchText = ""
-                                searchResults = []
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(Theme.secondaryText)
+                        } else {
+                            if !searchText.isEmpty {
+                                Button {
+                                    searchText = ""
+                                    searchResults = []
+                                    isSearchFocused = true
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(Theme.secondaryText)
+                                }
                             }
+
+                            // Genre filter button
+                            Button {
+                                isSearchFocused = false
+                                showGenrePicker = true
+                            } label: {
+                                Image(systemName: "line.3.horizontal.decrease.circle")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(Theme.foreground)
+                            }
+                            .padding(.leading, Theme.Spacing.xs)
                         }
                     }
                     .padding(.horizontal, Theme.Spacing.base)
@@ -826,9 +1029,9 @@ struct ShowSearchOverlay: View {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: Theme.foreground))
                 Spacer()
-            } else if searchResults.isEmpty && !searchText.isEmpty && !isSearching {
+            } else if searchResults.isEmpty && (!searchText.isEmpty || isFiltering) && !isSearching {
                 Spacer()
-                Text("No shows found")
+                Text(isFiltering ? "No shows found for this genre" : "No shows found")
                     .font(.lightBody(size: Theme.Typography.bodyBase))
                     .foregroundColor(Theme.secondaryText)
                 Spacer()
@@ -836,12 +1039,11 @@ struct ShowSearchOverlay: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, show in
-                            Button {
-                                onShowSelected?(show)
-                            } label: {
-                                SearchResultRow(show: show)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                            SearchResultRowTappable(
+                                show: show,
+                                onShowSelected: onShowSelected,
+                                onGenreSelected: handleLocalGenreSelection
+                            )
 
                             if index < searchResults.count - 1 {
                                 Rectangle()
@@ -855,9 +1057,30 @@ struct ShowSearchOverlay: View {
                 }
             } else {
                 Spacer()
-                Text("Type to search for shows")
-                    .font(.lightBody(size: Theme.Typography.bodyBase))
-                    .foregroundColor(Theme.secondaryText)
+                VStack(spacing: Theme.Spacing.md) {
+                    Text("Type to search for shows")
+                        .font(.lightBody(size: Theme.Typography.bodyBase))
+                        .foregroundColor(Theme.secondaryText)
+                    Text("or")
+                        .font(.lightBody(size: Theme.Typography.bodySmall))
+                        .foregroundColor(Theme.secondaryText.opacity(0.7))
+                    Button {
+                        showGenrePicker = true
+                    } label: {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                            Text("Filter by genre")
+                        }
+                        .font(.mediumBody(size: Theme.Typography.bodyBase))
+                        .foregroundColor(Theme.foreground)
+                        .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.vertical, Theme.Spacing.md)
+                        .overlay(
+                            Capsule()
+                                .stroke(Theme.foreground, lineWidth: 1)
+                        )
+                    }
+                }
                 Spacer()
             }
         }
@@ -866,13 +1089,34 @@ struct ShowSearchOverlay: View {
         .onAppear {
             isSearchFocused = true
         }
+        .task {
+            // Load genres for picker
+            do {
+                availableGenres = try await RefugeAPI.shared.fetchGenres()
+            } catch {
+                print("Failed to load genres:", error)
+            }
+        }
+        .task(id: genreFilter) {
+            guard let genre = genreFilter else { return }
+            await loadShowsByGenre(genre)
+        }
         .onChange(of: searchText) { _, newValue in
             searchTask?.cancel()
 
             if newValue.isEmpty {
-                searchResults = []
+                if let genre = genreFilter {
+                    Task { await loadShowsByGenre(genre) }
+                } else {
+                    searchResults = []
+                }
                 isSearching = false
                 return
+            }
+
+            // Clear genre filter when typing
+            if genreFilter != nil {
+                genreFilter = nil
             }
 
             isSearching = true
@@ -889,6 +1133,31 @@ struct ShowSearchOverlay: View {
                 await performSearch(query: newValue)
             }
         }
+        .sheet(isPresented: $showGenrePicker) {
+            GenrePickerSheet(
+                genres: availableGenres,
+                onGenreSelected: { genre in
+                    showGenrePicker = false
+                    handleLocalGenreSelection(genre)
+                }
+            )
+        }
+    }
+
+    private func loadShowsByGenre(_ genre: String) async {
+        isSearching = true
+        do {
+            let shows = try await RefugeAPI.shared.fetchShowsByGenre(genre: genre)
+            if genreFilter == genre {
+                searchResults = shows
+            }
+        } catch {
+            print("Failed to fetch shows by genre:", error)
+            if genreFilter == genre {
+                searchResults = []
+            }
+        }
+        isSearching = false
     }
 
     private func performSearch(query: String) async {
@@ -906,5 +1175,145 @@ struct ShowSearchOverlay: View {
         if !Task.isCancelled {
             isSearching = false
         }
+    }
+}
+
+// MARK: - Search Result Row with separate tap areas
+
+struct SearchResultRowTappable: View {
+    let show: ShowItem
+    var onShowSelected: ((ShowItem) -> Void)?
+    var onGenreSelected: ((String) -> Void)?
+    private let rowHeight: CGFloat = 80
+
+    private var formattedDate: String? {
+        guard let date = show.date else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter.string(from: date)
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            // Tappable area for show selection
+            Button {
+                onShowSelected?(show)
+            } label: {
+                HStack(spacing: Theme.Spacing.md) {
+                    // Cover image
+                    if let url = show.coverImage?.url {
+                        KFImage(url)
+                            .placeholder {
+                                Theme.cardBackground
+                            }
+                            .loadDiskFileSynchronously()
+                            .fade(duration: 0.15)
+                            .cancelOnDisappear(true)
+                            .downsampling(size: CGSize(width: rowHeight * 2, height: rowHeight * 2))
+                            .cacheOriginalImage()
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: rowHeight, height: rowHeight)
+                            .clipped()
+                    } else {
+                        Theme.cardBackground
+                            .frame(width: rowHeight, height: rowHeight)
+                    }
+
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        Text(show.title.replacingOccurrences(of: #" - .*$"#, with: "", options: .regularExpression))
+                            .font(.mediumBody(size: Theme.Typography.bodySmall))
+                            .foregroundColor(Theme.foreground)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+
+                        if let date = formattedDate {
+                            Text(date)
+                                .font(.lightBody(size: Theme.Typography.caption))
+                                .foregroundColor(Theme.secondaryText)
+                        }
+
+                        // Genre badges - tappable separately
+                        if let genres = show.genres, !genres.isEmpty {
+                            HStack(spacing: Theme.Spacing.xs) {
+                                ForEach(genres.prefix(2), id: \.self) { genre in
+                                    Button {
+                                        onGenreSelected?(genre)
+                                    } label: {
+                                        Text(genre)
+                                            .font(.system(size: 9, weight: .medium))
+                                            .textCase(.uppercase)
+                                            .tracking(0.3)
+                                            .foregroundColor(Theme.foreground.opacity(0.7))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 3)
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Theme.foreground.opacity(0.3), lineWidth: 1)
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Theme.secondaryText)
+                .padding(.trailing, Theme.Spacing.md)
+        }
+        .padding(.leading, Theme.Spacing.lg)
+        .padding(.vertical, Theme.Spacing.sm)
+        .frame(minHeight: rowHeight)
+        .background(Theme.background)
+    }
+}
+
+// MARK: - Genre Picker Sheet
+
+struct GenrePickerSheet: View {
+    let genres: [String]
+    var onGenreSelected: ((String) -> Void)?
+    @State private var searchText = ""
+    @Environment(\.dismiss) private var dismiss
+
+    private var filteredGenres: [String] {
+        if searchText.isEmpty {
+            return genres
+        }
+        return genres.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(filteredGenres, id: \.self) { genre in
+                    Button {
+                        onGenreSelected?(genre)
+                    } label: {
+                        Text(genre)
+                            .foregroundColor(Theme.foreground)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .searchable(text: $searchText, prompt: "Search genres")
+            .navigationTitle("Filter by Genre")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }

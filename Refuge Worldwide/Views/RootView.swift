@@ -43,6 +43,7 @@ struct RootView: View {
     @State private var showsSearchMode = false
     @State private var showsSearchText = ""
     @State private var showsSearchResults: [ShowItem] = []
+    @State private var showsGenreFilter: String?
     @ObservedObject private var radio = RadioPlayer.shared
 
     private func handleShowSelected(_ show: ShowItem) {
@@ -56,6 +57,21 @@ struct RootView: View {
         artistsNavigationPath = NavigationPath()
         artistsNavigationPath.append(ScheduleDestination.artistDetail(slug: slug, name: name))
         switchTab(to: .artists)
+    }
+
+    private func handleGenreSelected(_ genre: String) {
+        showsNavigationPath = NavigationPath()
+        showsSearchText = ""
+        showsSearchResults = []
+        showsGenreFilter = genre
+        showsSearchMode = true
+
+        // If no show is selected, try to use the currently playing show so overlay appears
+        if selectedShow == nil, let playingShow = radio.currentPlayingShow {
+            selectedShow = playingShow
+        }
+
+        switchTab(to: .shows)
     }
 
     private var slideDirection: Edge {
@@ -97,7 +113,8 @@ struct RootView: View {
     private var liveView: some View {
         LiveView(
             onShowSelected: handleShowSelected,
-            onArtistSelected: handleArtistSelected
+            onArtistSelected: handleArtistSelected,
+            onGenreSelected: handleGenreSelected
         )
         .offset(x: tabOffset(for: .live))
     }
@@ -108,6 +125,7 @@ struct RootView: View {
             navigationPath: $scheduleNavigationPath,
             onShowSelected: handleShowSelected,
             onArtistSelected: handleArtistSelected,
+            onGenreSelected: handleGenreSelected,
             onLiveShowSelected: { switchTab(to: .live) }
         )
         .offset(x: tabOffset(for: .schedule))
@@ -117,7 +135,8 @@ struct RootView: View {
     private var artistsView: some View {
         ArtistsView(
             navigationPath: $artistsNavigationPath,
-            onShowSelected: handleShowSelected
+            onShowSelected: handleShowSelected,
+            onGenreSelected: handleGenreSelected
         )
         .offset(x: tabOffset(for: .artists))
     }
@@ -130,8 +149,10 @@ struct RootView: View {
             isSearchMode: $showsSearchMode,
             searchText: $showsSearchText,
             searchResults: $showsSearchResults,
+            genreFilter: $showsGenreFilter,
             onShowSelected: handleShowSelected,
-            onArtistSelected: handleArtistSelected
+            onArtistSelected: handleArtistSelected,
+            onGenreSelected: handleGenreSelected
         )
         .offset(x: tabOffset(for: .shows))
     }

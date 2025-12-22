@@ -219,6 +219,64 @@ final class RefugeAPI {
         }
     }
 
+    func fetchGenres() async throws -> [String] {
+        let url = URL(string: "https://refugeworldwide.com/api/genres")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return try JSONDecoder().decode([String].self, from: data)
+    }
+
+    func fetchShowsByGenre(genre: String, take: Int = 20, skip: Int = 0) async throws -> [ShowItem] {
+        let encoded = genre.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? genre
+        let urlString = "https://refugeworldwide.com/api/shows?take=\(take)&skip=\(skip)&filter=\(encoded)"
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+
+        guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        return jsonArray.compactMap { item -> ShowItem? in
+            guard let title = item["title"] as? String,
+                  let slug = item["slug"] as? String else {
+                return nil
+            }
+
+            var coverImage: ShowItem.CoverImage? = nil
+            if let urlStr = item["coverImage"] as? String {
+                let fullUrlStr = urlStr.hasPrefix("//") ? "https:\(urlStr)" : urlStr
+                if let url = URL(string: fullUrlStr) {
+                    coverImage = ShowItem.CoverImage(url: url)
+                }
+            }
+
+            var date: Date? = nil
+            if let dateStr = item["date"] as? String {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                date = formatter.date(from: dateStr)
+                if date == nil {
+                    formatter.formatOptions = [.withInternetDateTime]
+                    date = formatter.date(from: dateStr)
+                }
+            }
+
+            let genres = item["genres"] as? [String]
+
+            return ShowItem(
+                title: title,
+                slug: slug,
+                date: date,
+                dateEnd: nil,
+                coverImage: coverImage,
+                description: nil,
+                genres: genres,
+                artistsCollection: nil
+            )
+        }
+    }
+
     // Fetch detailed show information from the website API (/api/shows/<slug>)
     func fetchShowDetail(slug: String) async throws -> ShowDetail {
         let encoded = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
