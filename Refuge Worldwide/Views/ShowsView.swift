@@ -362,13 +362,25 @@ struct ShowDetailContent: View {
                     }
 
                 VStack(spacing: Theme.Spacing.base) {
-                    // Date - like "20 Dec 2025"
-                    if let date = formattedDate {
-                        Text(date)
-                            .font(.lightBody(size: Theme.Typography.bodySmall))
-                            .foregroundColor(Theme.secondaryText)
-                            .padding(.top, Theme.Spacing.lg)
+                    // Date (centered) with Share icon on right
+                    HStack {
+                        Spacer()
+                        if let date = formattedDate {
+                            Text(date)
+                                .font(.lightBody(size: Theme.Typography.bodySmall))
+                                .foregroundColor(Theme.secondaryText)
+                        }
+                        Spacer()
                     }
+                    .overlay(alignment: .trailing) {
+                        if let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                           let shareURL = URL(string: "https://refugeworldwide.com/radio/\(slug)") {
+                            ShareLink(item: shareURL) {
+                                ShareIconView(size: 20, color: Theme.foreground)
+                            }
+                        }
+                    }
+                    .padding(.top, Theme.Spacing.lg)
 
                     // Title - serif style
                     Text(show.title.replacingOccurrences(of: #" - .*$"#, with: "", options: .regularExpression))
@@ -376,7 +388,6 @@ struct ShowDetailContent: View {
                         .foregroundColor(Theme.foreground)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, formattedDate == nil && mixcloudLink == nil ? Theme.Spacing.lg : Theme.Spacing.sm)
 
                     // Genre badges (centered)
                     if !genres.isEmpty {
@@ -390,26 +401,6 @@ struct ShowDetailContent: View {
                     // Artists - tappable links
                     if !artists.isEmpty {
                         ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
-                    }
-
-                    // Share button
-                    if let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-                       let shareURL = URL(string: "https://refugeworldwide.com/radio/\(slug)") {
-                        ShareLink(item: shareURL) {
-                            HStack(spacing: Theme.Spacing.sm) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 14, weight: .medium))
-                                Text("Share")
-                                    .font(.mediumBody(size: Theme.Typography.bodySmall))
-                            }
-                            .foregroundColor(Theme.foreground)
-                            .padding(.horizontal, Theme.Spacing.lg)
-                            .padding(.vertical, Theme.Spacing.sm)
-                            .overlay(
-                                Capsule()
-                                    .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
-                            )
-                        }
                     }
 
                     // Play button and external link - prominent, centered

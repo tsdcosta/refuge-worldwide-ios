@@ -71,20 +71,37 @@ struct LiveView: View {
 
                     if let show = liveShow {
                         VStack(spacing: Theme.Spacing.base) {
+                            // Time (centered) with Share icon on right
+                            HStack {
+                                Spacer()
+                                if !timeString.isEmpty {
+                                    Text(timeString)
+                                        .font(.lightBody(size: Theme.Typography.bodySmall))
+                                        .foregroundColor(Theme.secondaryText)
+                                }
+                                Spacer()
+                            }
+                            .overlay(alignment: .trailing) {
+                                // Share icon - use /radio for repeats, /radio/slug for live shows
+                                let shareURL: URL = {
+                                    if !show.slug.isEmpty,
+                                       let encoded = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
+                                        return URL(string: "https://refugeworldwide.com/radio/\(encoded)")!
+                                    }
+                                    return URL(string: "https://refugeworldwide.com/radio")!
+                                }()
+                                ShareLink(item: shareURL) {
+                                    ShareIconView(size: 20, color: Theme.foreground)
+                                }
+                            }
+                            .padding(.top, Theme.Spacing.lg)
+
                             // Title - serif heading style
                             Text(show.title)
                                 .font(.serifHeading(size: Theme.Typography.headingBase))
                                 .foregroundColor(Theme.foreground)
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, Theme.Spacing.lg)
-
-                            // Time
-                            if !timeString.isEmpty {
-                                Text(timeString)
-                                    .font(.lightBody(size: Theme.Typography.bodySmall))
-                                    .foregroundColor(Theme.secondaryText)
-                            }
 
                             // Genre badges - website style (centered)
                             if !liveGenres.isEmpty {
@@ -94,30 +111,10 @@ struct LiveView: View {
                                     }
                                 }
                             }
-                            
+
                             // Artists - tappable links
                             if let artists = show.artistsCollection?.items, !artists.isEmpty {
                                 ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
-                            }
-
-                            // Share button
-                            if let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-                               let shareURL = URL(string: "https://refugeworldwide.com/radio/\(slug)") {
-                                ShareLink(item: shareURL) {
-                                    HStack(spacing: Theme.Spacing.sm) {
-                                        Image(systemName: "square.and.arrow.up")
-                                            .font(.system(size: 14, weight: .medium))
-                                        Text("Share")
-                                            .font(.mediumBody(size: Theme.Typography.bodySmall))
-                                    }
-                                    .foregroundColor(Theme.foreground)
-                                    .padding(.horizontal, Theme.Spacing.lg)
-                                    .padding(.vertical, Theme.Spacing.sm)
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
-                                    )
-                                }
                             }
 
                             // Description

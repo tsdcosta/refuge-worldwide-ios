@@ -190,3 +190,113 @@ extension View {
         modifier(BadgeStyle(inverted: inverted, small: small))
     }
 }
+
+// MARK: - Share Icon (Three Connected Dots)
+
+struct ShareIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let dotRadius = rect.width * 0.15
+        let leftDot = CGPoint(x: rect.width * 0.2, y: rect.height * 0.5)
+        let topRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.2)
+        let bottomRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.8)
+
+        // Draw connecting lines
+        path.move(to: leftDot)
+        path.addLine(to: topRightDot)
+        path.move(to: leftDot)
+        path.addLine(to: bottomRightDot)
+
+        // Draw dots
+        path.addEllipse(in: CGRect(
+            x: leftDot.x - dotRadius,
+            y: leftDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+        path.addEllipse(in: CGRect(
+            x: topRightDot.x - dotRadius,
+            y: topRightDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+        path.addEllipse(in: CGRect(
+            x: bottomRightDot.x - dotRadius,
+            y: bottomRightDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+
+        return path
+    }
+}
+
+struct ShareIconView: View {
+    var size: CGFloat = 20
+    var color: Color = Theme.foreground
+    var lineWidth: CGFloat = 1.5
+
+    var body: some View {
+        ZStack {
+            // Lines
+            ShareIconLines()
+                .stroke(color, lineWidth: lineWidth)
+                .frame(width: size, height: size)
+
+            // Filled dots
+            ShareIconDots()
+                .fill(color)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+struct ShareIconLines: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let leftDot = CGPoint(x: rect.width * 0.2, y: rect.height * 0.5)
+        let topRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.2)
+        let bottomRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.8)
+
+        path.move(to: leftDot)
+        path.addLine(to: topRightDot)
+        path.move(to: leftDot)
+        path.addLine(to: bottomRightDot)
+
+        return path
+    }
+}
+
+struct ShareIconDots: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        let dotRadius = rect.width * 0.12
+        let leftDot = CGPoint(x: rect.width * 0.2, y: rect.height * 0.5)
+        let topRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.2)
+        let bottomRightDot = CGPoint(x: rect.width * 0.8, y: rect.height * 0.8)
+
+        path.addEllipse(in: CGRect(
+            x: leftDot.x - dotRadius,
+            y: leftDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+        path.addEllipse(in: CGRect(
+            x: topRightDot.x - dotRadius,
+            y: topRightDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+        path.addEllipse(in: CGRect(
+            x: bottomRightDot.x - dotRadius,
+            y: bottomRightDot.y - dotRadius,
+            width: dotRadius * 2,
+            height: dotRadius * 2
+        ))
+
+        return path
+    }
+}

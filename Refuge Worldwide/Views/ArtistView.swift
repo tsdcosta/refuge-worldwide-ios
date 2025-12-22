@@ -596,32 +596,24 @@ struct ArtistDetailView: View {
                     }
 
                     VStack(spacing: Theme.Spacing.base) {
-                        // Name - serif style
-                        Text(artist.name)
-                            .font(.serifHeading(size: Theme.Typography.headingBase))
-                            .foregroundColor(Theme.foreground)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, Theme.Spacing.lg)
-
-                        // Share button
-                        if let slug = artist.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-                           let shareURL = URL(string: "https://refugeworldwide.com/artists/\(slug)") {
-                            ShareLink(item: shareURL) {
-                                HStack(spacing: Theme.Spacing.sm) {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 14, weight: .medium))
-                                    Text("Share")
-                                        .font(.mediumBody(size: Theme.Typography.bodySmall))
-                                }
+                        // Name row with share icon aligned right
+                        HStack {
+                            Spacer()
+                            Text(artist.name)
+                                .font(.serifHeading(size: Theme.Typography.headingBase))
                                 .foregroundColor(Theme.foreground)
-                                .padding(.horizontal, Theme.Spacing.lg)
-                                .padding(.vertical, Theme.Spacing.sm)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
-                                )
+                                .multilineTextAlignment(.center)
+                            Spacer()
+                        }
+                        .overlay(alignment: .trailing) {
+                            if let slug = artist.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                               let shareURL = URL(string: "https://refugeworldwide.com/artists/\(slug)") {
+                                ShareLink(item: shareURL) {
+                                    ShareIconView(size: 20, color: Theme.foreground)
+                                }
                             }
                         }
+                        .padding(.top, Theme.Spacing.lg)
 
                         // Description
                         if let description = artist.description, !description.isEmpty {
