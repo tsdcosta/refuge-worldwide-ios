@@ -361,7 +361,41 @@ final class RadioPlayer: ObservableObject {
         isPlaying = true
         isBuffering = true
         isLiveStream = true
-        updateNowPlayingPlaybackState()
+        currentPlayingShow = nil
+        currentPlayingURL = nil
+
+        // Immediately update Now Playing with live show info
+        updateNowPlayingForLiveStream()
+    }
+
+    /// Updates Now Playing info for live stream using cached LiveShowService data
+    private func updateNowPlayingForLiveStream() {
+        let liveService = LiveShowService.shared
+        if let show = liveService.liveShow {
+            var timeString = ""
+            if let start = show.date, let end = show.dateEnd {
+                let formatter = DateFormatter()
+                formatter.timeStyle = .short
+                timeString = "\(formatter.string(from: start)) – \(formatter.string(from: end))"
+            } else if let start = show.date {
+                let formatter = DateFormatter()
+                formatter.timeStyle = .short
+                timeString = formatter.string(from: start)
+            }
+
+            nowPlayingTitle = show.title
+            nowPlayingSubtitle = timeString
+            nowPlayingArtworkURL = show.coverImage?.url
+            cachedArtwork = nil
+        } else {
+            // No live show cached, use default
+            nowPlayingTitle = "Refuge Worldwide"
+            nowPlayingSubtitle = ""
+            nowPlayingArtworkURL = nil
+            cachedArtwork = nil
+        }
+
+        updateNowPlayingInfo()
     }
 
     func playURL(_ url: URL, title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil, show: ShowItem? = nil) {
