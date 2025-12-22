@@ -352,8 +352,11 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
                         window.webkit.messageHandlers.embedPlayer.postMessage({event: 'error', data: e});
                     });
 
-                    // Auto-play
-                    widget.play();
+                    // Auto-play with delay to ensure widget is fully initialized
+                    // The ready promise resolves before internal state is complete
+                    setTimeout(function() {
+                        widget.play();
+                    }, 500);
                 });
             </script>
         </body>
