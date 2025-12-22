@@ -51,7 +51,6 @@ final class AudioEngine: NSObject, @unchecked Sendable {
         stateLock.withLock { _isLiveStream }
     }
 
-    // Callback for state changes (will be called on arbitrary queue)
     var onStateChanged: (() -> Void)?
 
     private override init() {
@@ -71,8 +70,6 @@ final class AudioEngine: NSObject, @unchecked Sendable {
             print("[AudioEngine] Failed to configure audio session: \(error)")
         }
     }
-
-    // MARK: - Notifications
 
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
@@ -100,7 +97,6 @@ final class AudioEngine: NSObject, @unchecked Sendable {
         switch type {
         case .began:
             print("[AudioEngine] Interruption began - stopping playback")
-            // Stop playback completely when another app plays audio
             stop()
 
         case .ended:
@@ -124,8 +120,6 @@ final class AudioEngine: NSObject, @unchecked Sendable {
             stop()
         }
     }
-
-    // MARK: - Playback Control
 
     func play() {
         playLiveStream()
@@ -187,13 +181,10 @@ final class AudioEngine: NSObject, @unchecked Sendable {
         }
     }
 
-    // MARK: - Player Setup
-
     private func createPlayer() {
         player = AVPlayer()
         player?.automaticallyWaitsToMinimizeStalling = true
 
-        // Observe time control status
         timeControlObserver = player?.observe(\.timeControlStatus, options: [.new, .old]) { [weak self] player, _ in
             self?.handleTimeControlStatusChange(player.timeControlStatus)
         }
@@ -230,11 +221,10 @@ final class AudioEngine: NSObject, @unchecked Sendable {
 
         case .paused:
             print("[AudioEngine] Status: Paused (intent: \(playbackIntent))")
-            // Only update state if user actually stopped
             if !playbackIntent {
                 updateState(playing: false, buffering: false)
             }
-            // Don't try to auto-resume here - that causes the loop
+            // Don't try to auto-resume - that causes the loop
 
         case .waitingToPlayAtSpecifiedRate:
             let reason = player?.reasonForWaitingToPlay?.rawValue ?? "unknown"
@@ -260,7 +250,6 @@ final class AudioEngine: NSObject, @unchecked Sendable {
             let error = playerItem?.error?.localizedDescription ?? "unknown"
             print("[AudioEngine] Player item failed: \(error)")
             if playbackIntent {
-                // Retry after delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
                     guard let self = self, self.playbackIntent else { return }
                     print("[AudioEngine] Retrying after failure...")
@@ -348,10 +337,7 @@ final class RadioPlayer: ObservableObject {
         setupInitialNowPlayingInfo()
     }
 
-    // MARK: - Playback Control
-
     func play() {
-        // Stop embed player if playing
         if isEmbedPlaying {
             embedPlayer.stop()
             isEmbedPlaying = false
@@ -364,22 +350,19 @@ final class RadioPlayer: ObservableObject {
         currentPlayingShow = nil
         currentPlayingURL = nil
 
-        // Immediately update Now Playing with live show info
         updateNowPlayingForLiveStream()
     }
 
-    /// Updates Now Playing info for live stream using cached LiveShowService data
     private func updateNowPlayingForLiveStream() {
         let liveService = LiveShowService.shared
         if let show = liveService.liveShow {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+
             var timeString = ""
             if let start = show.date, let end = show.dateEnd {
-                let formatter = DateFormatter()
-                formatter.timeStyle = .short
                 timeString = "\(formatter.string(from: start)) – \(formatter.string(from: end))"
             } else if let start = show.date {
-                let formatter = DateFormatter()
-                formatter.timeStyle = .short
                 timeString = formatter.string(from: start)
             }
 
@@ -388,7 +371,6 @@ final class RadioPlayer: ObservableObject {
             nowPlayingArtworkURL = show.coverImage?.url
             cachedArtwork = nil
         } else {
-            // No live show cached, use default
             nowPlayingTitle = "Refuge Worldwide"
             nowPlayingSubtitle = ""
             nowPlayingArtworkURL = nil
@@ -399,7 +381,6 @@ final class RadioPlayer: ObservableObject {
     }
 
     func playURL(_ url: URL, title: String? = nil, subtitle: String? = nil, artworkURL: URL? = nil, show: ShowItem? = nil) {
-        // Update metadata first
         if let title = title {
             nowPlayingTitle = title
         }
@@ -414,15 +395,12 @@ final class RadioPlayer: ObservableObject {
         currentPosition = 0
         duration = 0
 
-        // Check if this is an embeddable URL (SoundCloud or Mixcloud)
         if EmbedPlayer.isEmbeddableURL(url) {
-            // Stop the audio engine if playing
             engine.stop()
             isEmbedPlaying = true
             currentPlayingShow = show
             embedPlayer.play(url: url)
         } else {
-            // Stop embed player if playing
             if isEmbedPlaying {
                 embedPlayer.stop()
                 isEmbedPlaying = false
@@ -451,8 +429,8 @@ final class RadioPlayer: ObservableObject {
 
     func resume() {
         if isEmbedPlaying && currentPlayingURL != nil {
-            // Don't set state here - let embedPlayer.onStateChanged handle it
-            // This is important because embedPlayer.resume() may defer if app is not active
+            // Don't set state - let embedPlayer.onStateChanged handle it
+            // Important: embedPlayer.resume() may defer if app is not active
             embedPlayer.resume()
         } else {
             play()
@@ -500,22 +478,17 @@ final class RadioPlayer: ObservableObject {
         return isPlaying && currentPlayingURL == url
     }
 
-    /// Check if a specific URL is the current one (playing or paused)
     func isCurrentURL(_ url: URL) -> Bool {
         return currentPlayingURL == url
     }
 
-    /// Check if a specific URL is currently paused
     func isPausedURL(_ url: URL) -> Bool {
         return !isPlaying && isEmbedPlaying && currentPlayingURL == url
     }
 
-    /// Check if seeking is supported for current playback (embeddable streams only)
     var canSeek: Bool {
         return isEmbedPlaying && duration > 0
     }
-
-    // MARK: - Now Playing Info
 
     private func setupInitialNowPlayingInfo() {
         updateNowPlayingInfo()
@@ -569,7 +542,6 @@ final class RadioPlayer: ObservableObject {
             nowPlayingArtworkURL = artworkURL
         }
 
-        // Determine if we need to load artwork
         let artworkURLChanged = nowPlayingArtworkURL != previousArtworkURL
         let needsArtworkLoad = artworkURLChanged || (nowPlayingArtworkURL != nil && cachedArtwork == nil)
 
@@ -589,14 +561,12 @@ final class RadioPlayer: ObservableObject {
             info[MPMediaItemPropertyArtist] = nowPlayingSubtitle
         }
 
-        // Preserve existing artwork if we have it cached
         if let artwork = cachedArtwork {
             info[MPMediaItemPropertyArtwork] = artwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        // Load artwork if URL changed or we don't have cached artwork yet
         if needsArtworkLoad, let url = nowPlayingArtworkURL {
             loadArtwork(from: url)
         }
@@ -624,7 +594,6 @@ final class RadioPlayer: ObservableObject {
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data, let image = UIImage(data: data) else { return }
 
-            // Crop to square for lock screen display
             let squareImage = image.croppedToSquare() ?? image
 
             Task { @MainActor in
@@ -639,7 +608,7 @@ final class RadioPlayer: ObservableObject {
     }
 }
 
-// MARK: - UIImage Extension for Square Cropping
+// MARK: - Square crop helper
 
 extension UIImage {
     func croppedToSquare() -> UIImage? {

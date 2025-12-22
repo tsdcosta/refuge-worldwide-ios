@@ -64,7 +64,6 @@ struct LiveView: View {
                                 .background(Theme.cardBackground)
                         }
 
-                        // Live indicator - top left, only show when live stream is playing (not buffering)
                         if radio.isPlaying && radio.isLiveStream && !radio.isBuffering {
                             VStack {
                                 HStack {
@@ -76,7 +75,6 @@ struct LiveView: View {
                             }
                         }
 
-                        // Play/Stop button - bottom left
                         VStack {
                             Spacer()
                             HStack {

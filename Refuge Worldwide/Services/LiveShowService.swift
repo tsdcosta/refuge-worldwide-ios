@@ -24,7 +24,6 @@ final class LiveShowService: ObservableObject {
 
     // MARK: - Observer Management
 
-    /// Call when a view appears that needs live show data
     func addObserver() {
         activeObservers += 1
         if activeObservers == 1 {
@@ -32,7 +31,6 @@ final class LiveShowService: ObservableObject {
         }
     }
 
-    /// Call when a view disappears
     func removeObserver() {
         activeObservers = max(0, activeObservers - 1)
         if activeObservers == 0 {
@@ -64,17 +62,13 @@ final class LiveShowService: ObservableObject {
                 }
             }
 
-            // Only update if show changed (different slug = different show)
             let showChanged = newShow?.slug != liveShow?.slug
 
             if showChanged {
                 liveShow = newShow
-
-                // Reset description/genres when show changes
                 liveDescription = []
                 liveGenres = []
 
-                // Update Now Playing only when show changes
                 if let show = newShow {
                     updateNowPlayingMetadata(show: show)
                 }
@@ -96,7 +90,6 @@ final class LiveShowService: ObservableObject {
                         newDescription = []
                     }
 
-                    // Update only if changed
                     if newGenres != liveGenres {
                         liveGenres = newGenres
                     }
@@ -140,14 +133,13 @@ final class LiveShowService: ObservableObject {
         let radio = RadioPlayer.shared
         guard radio.isLiveStream else { return }
 
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+
         var timeString = ""
         if let start = show.date, let end = show.dateEnd {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
             timeString = "\(formatter.string(from: start)) – \(formatter.string(from: end))"
         } else if let start = show.date {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
             timeString = formatter.string(from: start)
         }
 

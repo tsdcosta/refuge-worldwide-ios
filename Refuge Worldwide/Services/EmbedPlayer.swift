@@ -29,29 +29,12 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
     private var _needsRecreation = false
     private var _pendingResume = false
 
-    var isPlaying: Bool {
-        stateLock.withLock { _isPlaying }
-    }
-
-    var isBuffering: Bool {
-        stateLock.withLock { _isBuffering }
-    }
-
-    var currentURL: URL? {
-        stateLock.withLock { _currentURL }
-    }
-
-    var currentPosition: Double {
-        stateLock.withLock { _currentPosition }
-    }
-
-    var duration: Double {
-        stateLock.withLock { _duration }
-    }
-
-    var currentPlatform: EmbedPlatform? {
-        stateLock.withLock { _currentPlatform }
-    }
+    var isPlaying: Bool { stateLock.withLock { _isPlaying } }
+    var isBuffering: Bool { stateLock.withLock { _isBuffering } }
+    var currentURL: URL? { stateLock.withLock { _currentURL } }
+    var currentPosition: Double { stateLock.withLock { _currentPosition } }
+    var duration: Double { stateLock.withLock { _duration } }
+    var currentPlatform: EmbedPlatform? { stateLock.withLock { _currentPlatform } }
 
     var onStateChanged: (() -> Void)?
     var onProgressChanged: (() -> Void)?
@@ -86,7 +69,6 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
     }
 
     @objc private func appDidBecomeActive() {
-        // Check if there's a pending resume from lock screen
         let shouldResume = stateLock.withLock { _pendingResume }
         if shouldResume {
             print("[EmbedPlayer] App became active, executing pending resume")
@@ -95,7 +77,6 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Check if a URL is a SoundCloud URL
     static func isSoundCloudURL(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host.contains("soundcloud.com")
@@ -239,7 +220,6 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
                     return
                 }
 
-                // Widget exists, call play
                 print("[EmbedPlayer] Widget alive, calling play()")
                 self.stateLock.withLock { self._needsRecreation = false }
                 webView.evaluateJavaScript("widget.play();", completionHandler: nil)
@@ -502,7 +482,6 @@ final class EmbedPlayer: NSObject, @unchecked Sendable {
 extension EmbedPlayer: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         print("[EmbedPlayer] WebView finished loading")
-        // Widget should auto-play, update state
         updateState(playing: true, buffering: false)
     }
 

@@ -281,7 +281,6 @@ final class RefugeAPI {
         }
     }
 
-    // Fetch detailed show information from the website API (/api/shows/<slug>)
     func fetchShowDetail(slug: String) async throws -> ShowDetail {
         let encoded = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
         let urlString = "https://refugeworldwide.com/api/shows/\(encoded)"
@@ -295,10 +294,8 @@ final class RefugeAPI {
             return try decoder.decode(ShowDetail.self, from: data)
         }
 
-        // description from top-level field
         let description = showDict["description"] as? String
 
-        // genres from genresCollection.items[].name
         var genres: [String]? = nil
         if let genresCollection = showDict["genresCollection"] as? [String: Any],
            let items = genresCollection["items"] as? [[String: Any]] {
@@ -306,13 +303,11 @@ final class RefugeAPI {
             if !g.isEmpty { genres = g }
         }
 
-        // coverImage.url
         var coverImage: ShowDetail.CoverImage? = nil
         if let cover = showDict["coverImage"] as? [String: Any], let urlStr = cover["url"] as? String, let url = URL(string: urlStr) {
             coverImage = ShowDetail.CoverImage(url: url)
         }
 
-        // artistsCollection
         var artistsCollection: ShowDetail.ArtistCollection? = nil
         if let artists = showDict["artistsCollection"] as? [String: Any], let items = artists["items"] as? [[String: Any]] {
             let a = items.compactMap { item -> ShowDetail.Artist? in
@@ -381,7 +376,6 @@ final class RefugeAPI {
             if !shows.isEmpty { relatedShows = shows }
         }
 
-        // Try to extract a top-level mixcloud link from the show object
         let mixcloudLink: String? = showDict["mixcloudLink"] as? String
 
         return ShowDetail(description: description, genres: genres, coverImage: coverImage, artistsCollection: artistsCollection, descriptionParagraphs: descriptionParagraphs, relatedShows: relatedShows, mixcloudLink: mixcloudLink)
