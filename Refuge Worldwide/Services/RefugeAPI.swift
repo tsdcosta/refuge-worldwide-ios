@@ -32,6 +32,12 @@ final class RefugeAPI {
             if let date = formatter.date(from: dateString) {
                 return date
             }
+            
+            // Fallback to date-only format
+            formatter.formatOptions = [.withFullDate]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
 
             throw DecodingError.dataCorruptedError(
                 in: container,
@@ -157,6 +163,10 @@ final class RefugeAPI {
                 date = formatter.date(from: dateStr)
                 if date == nil {
                     formatter.formatOptions = [.withInternetDateTime]
+                    date = formatter.date(from: dateStr)
+                }
+                if date == nil {  // date only
+                    formatter.formatOptions = [.withFullDate]
                     date = formatter.date(from: dateStr)
                 }
             }

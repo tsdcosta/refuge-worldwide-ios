@@ -356,7 +356,7 @@ struct ShowDetailContent: View {
                         Text(date)
                             .font(.lightBody(size: Theme.Typography.bodySmall))
                             .foregroundColor(Theme.secondaryText)
-                            .padding(.top, mixcloudLink != nil ? Theme.Spacing.sm : Theme.Spacing.lg)
+                            .padding(.top, Theme.Spacing.lg)
                     }
 
                     // Title - serif style

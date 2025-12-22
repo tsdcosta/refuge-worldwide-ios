@@ -269,17 +269,20 @@ struct RelatedShowCard: View {
     private var formattedDate: String? {
         guard let dateStr = show.date else { return nil }
         let formatter = ISO8601DateFormatter()
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateStyle = .medium
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: dateStr) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
             return displayFormatter.string(from: date)
         }
         // Fallback without fractional seconds
         formatter.formatOptions = [.withInternetDateTime]
         if let date = formatter.date(from: dateStr) {
-            let displayFormatter = DateFormatter()
-            displayFormatter.dateStyle = .medium
+            return displayFormatter.string(from: date)
+        }
+        // Fallback date only
+        formatter.formatOptions = [.withFullDate]
+        if let date = formatter.date(from: dateStr) {
             return displayFormatter.string(from: date)
         }
         return nil
