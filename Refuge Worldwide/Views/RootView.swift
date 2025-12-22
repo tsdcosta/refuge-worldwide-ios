@@ -8,15 +8,34 @@
 import SwiftUI
 import UIKit
 
-enum Tab: Hashable {
-    case live
-    case schedule
-    case artists
-    case shows
+enum Tab: Int, Hashable, CaseIterable {
+    case live = 0
+    case schedule = 1
+    case artists = 2
+    case shows = 3
+
+    var title: String {
+        switch self {
+        case .live: return "Live"
+        case .schedule: return "Schedule"
+        case .artists: return "Artists"
+        case .shows: return "Shows"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .live: return "dot.radiowaves.left.and.right"
+        case .schedule: return "calendar"
+        case .artists: return "person.2"
+        case .shows: return "play.circle"
+        }
+    }
 }
 
 struct RootView: View {
     @State private var selectedTab: Tab = .live
+    @State private var previousTab: Tab = .live
     @State private var scheduleNavigationPath = NavigationPath()
     @State private var artistsNavigationPath = NavigationPath()
     @State private var showsNavigationPath = NavigationPath()
@@ -30,67 +49,104 @@ struct RootView: View {
         selectedShow = show
         showsNavigationPath = NavigationPath()
         showsSearchMode = false
-        selectedTab = .shows
+        switchTab(to: .shows)
     }
 
     private func handleArtistSelected(slug: String, name: String) {
         artistsNavigationPath = NavigationPath()
         artistsNavigationPath.append(ScheduleDestination.artistDetail(slug: slug, name: name))
-        selectedTab = .artists
+        switchTab(to: .artists)
+    }
+
+    private var slideDirection: Edge {
+        selectedTab.rawValue > previousTab.rawValue ? .trailing : .leading
     }
 
     var body: some View {
-        TabView(selection: tabSelection) {
-            LiveView(
-                onShowSelected: handleShowSelected,
-                onArtistSelected: handleArtistSelected
-            )
-                .tabItem {
-                    Label("Live", systemImage: "dot.radiowaves.left.and.right")
-                }
-                .tag(Tab.live)
+        VStack(spacing: 0) {
+            ZStack {
+                liveView
+                    .zIndex(selectedTab == .live ? 1 : 0)
+                    .opacity(selectedTab == .live ? 1 : 0)
 
-            ScheduleView(
-                navigationPath: $scheduleNavigationPath,
-                onShowSelected: handleShowSelected,
-                onArtistSelected: handleArtistSelected,
-                onLiveShowSelected: { selectedTab = .live }
-            )
-                .tabItem {
-                    Label("Schedule", systemImage: "calendar")
-                }
-                .tag(Tab.schedule)
+                scheduleView
+                    .zIndex(selectedTab == .schedule ? 1 : 0)
+                    .opacity(selectedTab == .schedule ? 1 : 0)
 
-            ArtistsView(
-                navigationPath: $artistsNavigationPath,
-                onShowSelected: handleShowSelected
-            )
-                .tabItem {
-                    Label("Artists", systemImage: "person.2")
-                }
-                .tag(Tab.artists)
+                artistsView
+                    .zIndex(selectedTab == .artists ? 1 : 0)
+                    .opacity(selectedTab == .artists ? 1 : 0)
 
-            ShowsView(
-                show: selectedShow,
-                navigationPath: $showsNavigationPath,
-                isSearchMode: $showsSearchMode,
-                searchText: $showsSearchText,
-                searchResults: $showsSearchResults,
-                onShowSelected: handleShowSelected,
-                onArtistSelected: handleArtistSelected
-            )
-                .tabItem {
-                    Label("Shows", systemImage: "play.circle")
-                }
-                .tag(Tab.shows)
+                showsView
+                    .zIndex(selectedTab == .shows ? 1 : 0)
+                    .opacity(selectedTab == .shows ? 1 : 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.25), value: selectedTab)
+
+            CustomTabBar(selectedTab: tabSelection)
         }
-        .tint(Theme.orange) // Use orange accent for radio app
+        .ignoresSafeArea(edges: .bottom)
         .preferredColorScheme(.dark)
         .onAppear {
-            configureTabBarAppearance()
-            // Allow screen to lock during audio playback
             UIApplication.shared.isIdleTimerDisabled = false
         }
+    }
+
+    @ViewBuilder
+    private var liveView: some View {
+        LiveView(
+            onShowSelected: handleShowSelected,
+            onArtistSelected: handleArtistSelected
+        )
+        .offset(x: tabOffset(for: .live))
+    }
+
+    @ViewBuilder
+    private var scheduleView: some View {
+        ScheduleView(
+            navigationPath: $scheduleNavigationPath,
+            onShowSelected: handleShowSelected,
+            onArtistSelected: handleArtistSelected,
+            onLiveShowSelected: { switchTab(to: .live) }
+        )
+        .offset(x: tabOffset(for: .schedule))
+    }
+
+    @ViewBuilder
+    private var artistsView: some View {
+        ArtistsView(
+            navigationPath: $artistsNavigationPath,
+            onShowSelected: handleShowSelected
+        )
+        .offset(x: tabOffset(for: .artists))
+    }
+
+    @ViewBuilder
+    private var showsView: some View {
+        ShowsView(
+            show: selectedShow,
+            navigationPath: $showsNavigationPath,
+            isSearchMode: $showsSearchMode,
+            searchText: $showsSearchText,
+            searchResults: $showsSearchResults,
+            onShowSelected: handleShowSelected,
+            onArtistSelected: handleArtistSelected
+        )
+        .offset(x: tabOffset(for: .shows))
+    }
+
+    private func tabOffset(for tab: Tab) -> CGFloat {
+        if tab == selectedTab {
+            return 0
+        }
+        let screenWidth = UIScreen.main.bounds.width
+        return tab.rawValue < selectedTab.rawValue ? -screenWidth : screenWidth
+    }
+
+    private func switchTab(to newTab: Tab) {
+        previousTab = selectedTab
+        selectedTab = newTab
     }
 
     private var tabSelection: Binding<Tab> {
@@ -104,52 +160,78 @@ struct RootView: View {
                     } else if newTab == .artists {
                         artistsNavigationPath = NavigationPath()
                     } else if newTab == .shows {
-                        // If in search mode, dismiss it; otherwise show currently playing
                         if showsSearchMode {
                             showsSearchMode = false
                         } else {
                             showsNavigationPath = NavigationPath()
-                            // Navigate to currently playing show if one exists
                             if let playingShow = radio.currentPlayingShow {
                                 selectedShow = playingShow
                             }
                         }
                     }
-                } else if newTab == .shows {
-                    // When switching to Shows tab, dismiss search and show currently playing
-                    showsSearchMode = false
-                    if let playingShow = radio.currentPlayingShow {
-                        selectedShow = playingShow
-                        showsNavigationPath = NavigationPath()
+                } else {
+                    if newTab == .shows {
+                        showsSearchMode = false
+                        if let playingShow = radio.currentPlayingShow {
+                            selectedShow = playingShow
+                            showsNavigationPath = NavigationPath()
+                        }
                     }
+                    previousTab = selectedTab
+                    selectedTab = newTab
                 }
-                selectedTab = newTab
             }
         )
     }
+}
 
-    private func configureTabBarAppearance() {
-        // Configure tab bar appearance to match website design
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor.black
+// MARK: - Custom Tab Bar
 
-        // Normal state
-        appearance.stackedLayoutAppearance.normal.iconColor = UIColor.gray
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-            .foregroundColor: UIColor.gray,
-            .font: UIFont.systemFont(ofSize: 10, weight: .medium)
-        ]
+struct CustomTabBar: View {
+    @Binding var selectedTab: Tab
 
-        // Selected state - use orange accent
-        let orangeColor = UIColor(red: 1.0, green: 0.576, blue: 0.0, alpha: 1.0) // #ff9300
-        appearance.stackedLayoutAppearance.selected.iconColor = orangeColor
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-            .foregroundColor: orangeColor,
-            .font: UIFont.systemFont(ofSize: 10, weight: .medium)
-        ]
+    private var bottomSafeArea: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .windows
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets.bottom ?? 0
+    }
 
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases, id: \.self) { tab in
+                TabBarButton(
+                    tab: tab,
+                    isSelected: selectedTab == tab
+                ) {
+                    selectedTab = tab
+                }
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, max(bottomSafeArea, 8))
+        .background(Color.black)
+    }
+}
+
+struct TabBarButton: View {
+    let tab: Tab
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 22))
+                Text(tab.title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundColor(isSelected ? Theme.orange : .gray)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -673,7 +673,9 @@ struct ArtistDetailView: View {
              .padding(.bottom, Theme.Spacing.xl)
          }
          .background(Theme.background)
-         .task {
+         .task(id: artistSlug) {
+             artist = nil
+             isLoading = true
              do {
                  artist = try await RefugeAPI.shared.fetchArtist(slug: artistSlug)
              } catch {
