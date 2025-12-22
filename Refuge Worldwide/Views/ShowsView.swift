@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 import Kingfisher
 
 // MARK: - Shows View (tab for past/future shows with playback)
@@ -391,36 +392,55 @@ struct ShowDetailContent: View {
                         ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
                     }
                     
-                    // Play button - prominent, centered
+                    // Play button and external link - prominent, centered
                     if let link = mixcloudLink, !link.isEmpty {
-                        Button {
-                            guard let url = streamURL else { return }
-                            if isThisPlaying {
-                                radio.pause()
-                            } else if isThisPaused {
-                                radio.resume()
-                            } else {
-                                radio.playURL(url, title: show.title, artworkURL: show.coverImage?.url, show: show)
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Theme.foreground)
-                                    .frame(width: 64, height: 64)
-
-                                if isThisBuffering {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
-                                        .scaleEffect(1.0)
+                        HStack(spacing: Theme.Spacing.lg) {
+                            // Play button
+                            Button {
+                                guard let url = streamURL else { return }
+                                if isThisPlaying {
+                                    radio.pause()
+                                } else if isThisPaused {
+                                    radio.resume()
                                 } else {
-                                    Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(Theme.background)
-                                        .offset(x: isThisPlaying ? 0 : 2)
+                                    radio.playURL(url, title: show.title, artworkURL: show.coverImage?.url, show: show)
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Theme.foreground)
+                                        .frame(width: 64, height: 64)
+
+                                    if isThisBuffering {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
+                                            .scaleEffect(1.0)
+                                    } else {
+                                        Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
+                                            .font(.system(size: 24, weight: .bold))
+                                            .foregroundColor(Theme.background)
+                                            .offset(x: isThisPlaying ? 0 : 2)
+                                    }
                                 }
                             }
+                            .buttonStyle(PlainButtonStyle())
+
+                            // Open in external app button
+                            Button {
+                                openInExternalPlayer(link: link)
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Theme.foreground)
+                                        .frame(width: 64, height: 64)
+
+                                    Image(systemName: "arrow.up.forward")
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundColor(Theme.background)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .buttonStyle(PlainButtonStyle())
                         .padding(.top, Theme.Spacing.lg)
 
                         // Seek bar - visible when playing or paused
@@ -593,6 +613,34 @@ struct ShowDetailContent: View {
             .components(separatedBy: CharacterSet.newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private func openInExternalPlayer(link: String) {
+        guard let webURL = URL(string: link) else { return }
+
+        // Determine if it's Mixcloud or SoundCloud and try the app scheme first
+        let appURL: URL?
+        if link.contains("mixcloud.com") {
+            // Mixcloud app scheme: mixcloud://path
+            let path = link.replacingOccurrences(of: "https://www.mixcloud.com", with: "")
+                          .replacingOccurrences(of: "https://mixcloud.com", with: "")
+            appURL = URL(string: "mixcloud://\(path)")
+        } else if link.contains("soundcloud.com") {
+            // SoundCloud app scheme: soundcloud://sounds:trackId or universal link
+            // SoundCloud works best with universal links - just open the web URL
+            // and iOS will redirect to the app if installed
+            appURL = nil
+        } else {
+            appURL = nil
+        }
+
+        if let appURL = appURL, UIApplication.shared.canOpenURL(appURL) {
+            UIApplication.shared.open(appURL)
+        } else {
+            // For SoundCloud and fallback: use universal links
+            // Opening the https URL will trigger iOS to open the app if installed
+            UIApplication.shared.open(webURL)
+        }
     }
 }
 

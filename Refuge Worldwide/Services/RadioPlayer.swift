@@ -332,15 +332,6 @@ final class RadioPlayer: ObservableObject {
                 self.isBuffering = self.embedPlayer.isBuffering
                 self.currentPlayingURL = self.embedPlayer.currentURL
                 self.duration = self.embedPlayer.duration
-                self.updateNowPlayingPlaybackState()
-
-                // Re-assert after delay to override widget's Now Playing info
-                if self.embedPlayer.isPlaying {
-                    Task {
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
-                        await MainActor.run { self.updateNowPlayingPlaybackState() }
-                    }
-                }
             }
         }
 
@@ -350,8 +341,6 @@ final class RadioPlayer: ObservableObject {
                 guard let self = self, self.isEmbedPlaying else { return }
                 self.currentPosition = self.embedPlayer.currentPosition
                 self.duration = self.embedPlayer.duration
-                // Continuously re-assert Now Playing info to override widget
-                self.updateNowPlayingPlaybackState()
             }
         }
 
@@ -421,7 +410,6 @@ final class RadioPlayer: ObservableObject {
             embedPlayer.pause()
             isPlaying = false
             isBuffering = false
-            updateNowPlayingPlaybackState()
         } else {
             stop()
         }
@@ -451,7 +439,6 @@ final class RadioPlayer: ObservableObject {
         currentPlayingShow = nil
         currentPosition = 0
         duration = 0
-        updateNowPlayingPlaybackState()
     }
 
     func seekTo(position: Double) {
@@ -570,7 +557,6 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func updateNowPlayingPlaybackState() {
-        // Rebuild the dictionary from our cached values to prevent SoundCloud widget from overwriting
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: nowPlayingTitle,
             MPNowPlayingInfoPropertyIsLiveStream: isLiveStream,
