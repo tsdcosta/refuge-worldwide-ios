@@ -603,6 +603,26 @@ struct ArtistDetailView: View {
                             .multilineTextAlignment(.center)
                             .padding(.top, Theme.Spacing.lg)
 
+                        // Share button
+                        if let slug = artist.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                           let shareURL = URL(string: "https://refugeworldwide.com/artists/\(slug)") {
+                            ShareLink(item: shareURL) {
+                                HStack(spacing: Theme.Spacing.sm) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 14, weight: .medium))
+                                    Text("Share")
+                                        .font(.mediumBody(size: Theme.Typography.bodySmall))
+                                }
+                                .foregroundColor(Theme.foreground)
+                                .padding(.horizontal, Theme.Spacing.lg)
+                                .padding(.vertical, Theme.Spacing.sm)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
+                                )
+                            }
+                        }
+
                         // Description
                         if let description = artist.description, !description.isEmpty {
                             Text(description)

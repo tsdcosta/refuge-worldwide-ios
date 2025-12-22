@@ -100,6 +100,26 @@ struct LiveView: View {
                                 ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
                             }
 
+                            // Share button
+                            if let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                               let shareURL = URL(string: "https://refugeworldwide.com/radio/\(slug)") {
+                                ShareLink(item: shareURL) {
+                                    HStack(spacing: Theme.Spacing.sm) {
+                                        Image(systemName: "square.and.arrow.up")
+                                            .font(.system(size: 14, weight: .medium))
+                                        Text("Share")
+                                            .font(.mediumBody(size: Theme.Typography.bodySmall))
+                                    }
+                                    .foregroundColor(Theme.foreground)
+                                    .padding(.horizontal, Theme.Spacing.lg)
+                                    .padding(.vertical, Theme.Spacing.sm)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
+                                    )
+                                }
+                            }
+
                             // Description
                             if !liveDescription.isEmpty {
                                 VStack(alignment: .leading, spacing: Theme.Spacing.md) {

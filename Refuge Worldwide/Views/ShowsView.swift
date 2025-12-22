@@ -391,7 +391,27 @@ struct ShowDetailContent: View {
                     if !artists.isEmpty {
                         ArtistLinksView(artists: artists, onArtistSelected: onArtistSelected)
                     }
-                    
+
+                    // Share button
+                    if let slug = show.slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                       let shareURL = URL(string: "https://refugeworldwide.com/radio/\(slug)") {
+                        ShareLink(item: shareURL) {
+                            HStack(spacing: Theme.Spacing.sm) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("Share")
+                                    .font(.mediumBody(size: Theme.Typography.bodySmall))
+                            }
+                            .foregroundColor(Theme.foreground)
+                            .padding(.horizontal, Theme.Spacing.lg)
+                            .padding(.vertical, Theme.Spacing.sm)
+                            .overlay(
+                                Capsule()
+                                    .stroke(Theme.foreground.opacity(0.5), lineWidth: 1)
+                            )
+                        }
+                    }
+
                     // Play button and external link - prominent, centered
                     if let link = mixcloudLink, !link.isEmpty {
                         HStack(spacing: Theme.Spacing.lg) {
