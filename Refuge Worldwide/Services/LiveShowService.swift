@@ -80,9 +80,7 @@ final class LiveShowService: ObservableObject {
                 do {
                     let detail = try await RefugeAPI.shared.fetchShowDetail(slug: slug)
 
-                    let newGenres = detail.genres?.map {
-                        $0.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }.filter { !$0.isEmpty } ?? []
+                    let newGenres = detail.genres?.filter { !$0.isEmpty } ?? []
 
                     let newDescription: [String]
                     if let paragraphs = detail.descriptionParagraphs, !paragraphs.isEmpty {

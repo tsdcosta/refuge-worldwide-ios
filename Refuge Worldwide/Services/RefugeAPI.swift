@@ -226,9 +226,13 @@ final class RefugeAPI {
     }
 
     func fetchShowsByGenre(genre: String, take: Int = 20, skip: Int = 0) async throws -> [ShowItem] {
-        let encoded = genre.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? genre
-        let urlString = "https://refugeworldwide.com/api/shows?take=\(take)&skip=\(skip)&filter=\(encoded)"
-        guard let url = URL(string: urlString) else {
+        var components = URLComponents(string: "https://refugeworldwide.com/api/shows")!
+        components.queryItems = [
+            URLQueryItem(name: "take", value: String(take)),
+            URLQueryItem(name: "skip", value: String(skip)),
+            URLQueryItem(name: "filter", value: genre)
+        ]
+        guard let url = components.url else {
             throw URLError(.badURL)
         }
         let (data, _) = try await URLSession.shared.data(from: url)
@@ -298,7 +302,7 @@ final class RefugeAPI {
         var genres: [String]? = nil
         if let genresCollection = showDict["genresCollection"] as? [String: Any],
            let items = genresCollection["items"] as? [[String: Any]] {
-            let g = items.compactMap { $0["name"] as? String }.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            let g = items.compactMap { $0["name"] as? String }.filter { !$0.isEmpty }
             if !g.isEmpty { genres = g }
         }
 

@@ -745,7 +745,7 @@ struct ShowDetailContent: View {
             mixcloudLink = showDetail.mixcloudLink
 
             if let g = showDetail.genres {
-                genres = g.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                genres = g.filter { !$0.isEmpty }
             } else {
                 genres = []
             }
