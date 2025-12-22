@@ -230,6 +230,14 @@ struct SearchResultRow: View {
             // Cover image
             if let url = show.coverImage?.url {
                 KFImage(url)
+                    .placeholder {
+                        Theme.cardBackground
+                    }
+                    .loadDiskFileSynchronously()
+                    .fade(duration: 0.15)
+                    .cancelOnDisappear(true)
+                    .downsampling(size: CGSize(width: rowHeight * 2, height: rowHeight * 2))
+                    .cacheOriginalImage()
                     .resizable()
                     .scaledToFill()
                     .frame(width: rowHeight, height: rowHeight)
@@ -344,6 +352,8 @@ struct ShowDetailContent: View {
                             .aspectRatio(1, contentMode: .fit)
                             .overlay(
                                 KFImage(url)
+                                    .loadDiskFileSynchronously()
+                                    .cacheOriginalImage()
                                     .resizable()
                                     .scaledToFill()
                             )

@@ -524,7 +524,8 @@ struct ArtistRow: View {
                         Circle()
                             .fill(Color.black.opacity(0.1))
                     }
-                    .fade(duration: 0.2)
+                    .loadDiskFileSynchronously()
+                    .fade(duration: 0.15)
                     .cancelOnDisappear(true)
                     .downsampling(size: CGSize(width: imageSize * 2, height: imageSize * 2))
                     .cacheOriginalImage()
@@ -586,6 +587,8 @@ struct ArtistDetailView: View {
                             .aspectRatio(1, contentMode: .fit)
                             .overlay(
                                 KFImage(photoURL)
+                                    .loadDiskFileSynchronously()
+                                    .cacheOriginalImage()
                                     .resizable()
                                     .scaledToFill()
                             )
@@ -702,7 +705,8 @@ struct ArtistShowCard: View {
                     .placeholder {
                         Theme.cardBackground
                     }
-                    .fade(duration: 0.2)
+                    .loadDiskFileSynchronously()
+                    .fade(duration: 0.15)
                     .cancelOnDisappear(true)
                     .downsampling(size: CGSize(width: rowHeight * 2, height: rowHeight * 2))
                     .cacheOriginalImage()

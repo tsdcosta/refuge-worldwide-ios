@@ -293,6 +293,14 @@ struct RelatedShowCard: View {
             // Cover image - indented to match section title
             if let url = show.coverImageURL {
                 KFImage(url)
+                    .placeholder {
+                        Theme.cardBackground
+                    }
+                    .loadDiskFileSynchronously()
+                    .fade(duration: 0.15)
+                    .cancelOnDisappear(true)
+                    .downsampling(size: CGSize(width: rowHeight * 2, height: rowHeight * 2))
+                    .cacheOriginalImage()
                     .resizable()
                     .scaledToFill()
                     .frame(width: rowHeight, height: rowHeight)
